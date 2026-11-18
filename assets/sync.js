@@ -16,6 +16,7 @@
   const PATH = "state/board.json", BRANCH = "main";
   const API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
   const K_TOKEN = "agency6-gh-token", K_NAME = "agency6-gh-name", K_PENDING = "agency6-sync-pending";
+  const K_LOGIN = "agency6-gh-login", K_AVATAR = "agency6-gh-avatar";
   const LOG_LIMIT = 300;
 
   const ls = {
@@ -36,6 +37,8 @@
     onRemoteEvents: () => {},
     get token() { return ls.get(K_TOKEN); },
     get name() { return ls.get(K_NAME) || "Анонім"; },
+    get login() { return ls.get(K_LOGIN) || ""; },
+    get avatar() { return ls.get(K_AVATAR) || ""; },
     canWrite() { return !!this.token; }
   };
   try { S.pending = JSON.parse(ls.get(K_PENDING) || "[]"); } catch (e) { S.pending = []; }
@@ -57,24 +60,25 @@
   // ── Операції над станом ───────────────────────────────
   function apply(state, op) {
     const stamp = { _at: op.at, _by: op.by };
+    const logIt = (e) => state.log.unshift({ ...e, login: op.login });   // логін GitHub автора
     if (op.type === "patch") {
       const isCustom = state.custom.find((t) => t.id === op.id);
       const prev = isCustom || state.overrides[op.id] || {};
       if (op.patch.status && op.patch.status !== (prev.status || op.fromStatus)) {
-        state.log.unshift({ at: op.at, by: op.by, id: op.id, title: op.title, action: "move", from: prev.status || op.fromStatus, to: op.patch.status });
+        logIt({ at: op.at, by: op.by, id: op.id, title: op.title, action: "move", from: prev.status || op.fromStatus, to: op.patch.status });
       } else if (op.patch.notes !== undefined || op.patch.assignee !== undefined || op.patch.crit) {
-        state.log.unshift({ at: op.at, by: op.by, id: op.id, title: op.title, action: "edit" });
+        logIt({ at: op.at, by: op.by, id: op.id, title: op.title, action: "edit" });
       }
       if (isCustom) Object.assign(isCustom, op.patch, stamp);
       else state.overrides[op.id] = { ...prev, ...op.patch, ...stamp };
     } else if (op.type === "create") {
       if (!state.custom.find((t) => t.id === op.task.id)) {
         state.custom.push({ ...op.task, ...stamp });
-        state.log.unshift({ at: op.at, by: op.by, id: op.task.id, title: op.task.title, action: "create" });
+        logIt({ at: op.at, by: op.by, id: op.task.id, title: op.task.title, action: "create" });
       }
     } else if (op.type === "delete") {
       state.custom = state.custom.filter((t) => t.id !== op.id);
-      state.log.unshift({ at: op.at, by: op.by, id: op.id, title: op.title, action: "delete" });
+      logIt({ at: op.at, by: op.by, id: op.id, title: op.title, action: "delete" });
     }
     state.log = state.log.slice(0, LOG_LIMIT);
     return state;
@@ -83,6 +87,7 @@
   function enqueue(op) {
     op.at = new Date().toISOString();
     op.by = S.name;
+    op.login = S.login;
     S.pending.push(op);
     ls.set(K_PENDING, JSON.stringify(S.pending));
     apply(S.state, structuredClone(op));   // оптимістично показуємо одразу
@@ -189,22 +194,38 @@
   }
 
   // ── Підключення ───────────────────────────────────────
-  S.connect = async (name, token) => {
-    ls.set(K_NAME, name.trim() || "Анонім");
-    ls.set(K_TOKEN, token.trim());
-    // Перевірка: чи має токен право запису в репозиторій
-    const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}`, {
-      headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${token.trim()}` }
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok || !body.permissions?.push) {
-      ls.set(K_TOKEN, null);
-      throw new Error(res.ok ? "Токен не має права запису в репозиторій" : `GitHub ${res.status}: ${body.message || "недійсний токен"}`);
+  // Верифікація: GitHub сам каже, кому належить токен, і чи має він право запису.
+  // Ім'я в історії береться з профілю GitHub — підписатися чужим ім'ям не вийде.
+  S.verify = async (token) => {
+    token = (token || "").trim();
+    if (!token) throw new Error("Вставте токен");
+    const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` };
+    const [userRes, repoRes] = await Promise.all([
+      fetch("https://api.github.com/user", { headers }),
+      fetch(`https://api.github.com/repos/${OWNER}/${REPO}`, { headers })
+    ]);
+    const user = await userRes.json().catch(() => ({}));
+    const repo = await repoRes.json().catch(() => ({}));
+    if (!userRes.ok) throw new Error(userRes.status === 401 ? "Недійсний або прострочений токен" : `GitHub ${userRes.status}: ${user.message || ""}`);
+    if (!repoRes.ok || !repo.permissions?.push) {
+      throw new Error(`@${user.login} не має права запису в ${OWNER}/${REPO}. Попросіть власника додати вас як collaborator, а токену дайте доступ Contents: Read and write (класичний — public_repo).`);
     }
+    return { login: user.login, name: user.name || user.login, avatar: user.avatar_url };
+  };
+  S.connect = async (token) => {
+    const who = await S.verify(token);
+    ls.set(K_TOKEN, token.trim());
+    ls.set(K_LOGIN, who.login);
+    ls.set(K_NAME, who.name);
+    ls.set(K_AVATAR, who.avatar);
     await S.pull();
     schedulePush();
+    return who;
   };
-  S.disconnect = () => { ls.set(K_TOKEN, null); setStatus("readonly"); S.onChange(); };
+  S.disconnect = () => {
+    [K_TOKEN, K_LOGIN, K_NAME, K_AVATAR].forEach((k) => ls.set(k, null));
+    setStatus("readonly"); S.onChange();
+  };
   S.repoLabel = `${OWNER}/${REPO}`;
   S.historyUrl = `https://github.com/${OWNER}/${REPO}/commits/${BRANCH}/${PATH}`;
 

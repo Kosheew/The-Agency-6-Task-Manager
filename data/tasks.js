@@ -45,7 +45,8 @@ window.PROJECT = {
     { id: "REP", name: "Репутація" },
     { id: "ECO", name: "Економіка" },
     { id: "UI", name: "UI / імерсія" },
-    { id: "CNT", name: "Контент" }
+    { id: "CNT", name: "Контент" },
+    { id: "ART", name: "3D / арт" }
   ],
 
   types: {
@@ -347,6 +348,23 @@ window.PROJECT = {
     { id: "AG-047", title: "Рішення: легкий RPG-шар навиків", epic: "PSY", phase: "E", type: "design", priority: "P2", estimate: "S", status: "backlog",
       desc: "Відкрите питання: від чого рахувати успіх репліки. Варіанти: детерміновані пороги (ресурси + докази) або 3 навики на психотип (0–5). Записати рішення в GDD.",
       gdd: "4. Психотипи → Розширення" },
+
+    // ───────────── 3D / арт (аудит ассетів 18.11.2026) ─────────────
+    { id: "ART-01", title: "Модель агента замість манекена", epic: "ART", phase: "B", type: "content", priority: "P0", estimate: "L", status: "backlog",
+      desc: "Зараз гравець, вороги й цивільні — HumanCharacterDummy_M/F. Потрібна модель агента в стилі нуар (костюм, плащ), 15–25k трикутників, ріг під наявні анімації (пістолет, гвинтівка, рух), читабельний силует з ізометричної камери.",
+      criteria: ["SK_Agent з LOD0–LOD2", "Ретаргет наявних анімацій без артефактів", "Перевірено в нічному освітленні рівня"], code: ["Content/Global/GameResources/Characters/Models"] },
+    { id: "ART-02", title: "NPC: охорона, цивільні, інформатор", epic: "ART", phase: "D", type: "content", priority: "P1", estimate: "L", status: "backlog",
+      desc: "3–4 базові моделі NPC з варіантами матеріалів (MI_) замість окремих мешів: охоронець, цивільний чоловік/жінка, ключовий NPC справи. 8–12k трикутників.",
+      deps: ["ART-01"] },
+    { id: "ART-03", title: "Предмети розслідування й сюжету", epic: "ART", phase: "D", type: "content", priority: "P1", estimate: "M", status: "backlog",
+      desc: "Немає моделей з GDD: портативний комп'ютер, фотокамера, лупа, відмичка, документи/лист/фото, флешка/картка, рація, телефон, кава. Дрібні предмети 0.5–3k трикутників, текстури 512–1024.",
+      criteria: ["9 моделей за чеклістом приймання", "Префаби з окремим дочірнім Model"] },
+    { id: "ART-04", title: "Аудит сторонніх паків: ліцензії, стиль, розмір", epic: "ART", phase: "S", type: "tech", priority: "P2", estimate: "S", status: "backlog",
+      desc: "Записати ліцензію кожного стороннього паку; прибрати ассети не в стилі (Samurai/Justice Sword, Tomahawk, Sci-fi Grenade, Arcade Machines, анімації Dance/OrcHammer/Spellbook); перенести бінарні файли в Git LFS; зменшити текстури важких паків.",
+      criteria: ["ThirdParty/<Pack>/LICENSE.txt для кожного паку", "Список видалених ассетів", "Розмір Assets зменшено"] },
+    { id: "ART-05", title: "Оточення першої справи", epic: "ART", phase: "E", type: "content", priority: "P1", estimate: "L", status: "backlog",
+      desc: "Інтер'єр за референсом gameplay_screen з Figma: мармуровий хол, колони, лампи, кейтеринг; модульний кіт (стіни, підлога, двері) + 20–30 пропсів. Наразі є лише Models/Agency (Door, DoorFrame, Test1) і Station.",
+      deps: ["ART-04"] },
 
     // ───────────── Що найбільше цінують гравці жанру ─────────────
     { id: "AG-048", title: "Fail-forward: провал відкриває гілку, а не глухий кут", epic: "DLG", phase: "B", type: "design", priority: "P0", estimate: "M", status: "backlog",

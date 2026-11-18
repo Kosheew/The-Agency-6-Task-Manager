@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agency 3D Models</title>
+  <meta name="description" content="3D-моделі проєкту The Agency 6: покриття GDD, каталог паків, арт-гайд, ризики.">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="models-page">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">A6</span>
+      <div>
+        <h1>The Agency 6</h1>
+        <p class="muted">3D-моделі</p>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Розділи">
+      <a href="index.html#overview">Огляд</a>
+      <a href="index.html#board">Дошка</a>
+      <a href="index.html#list">Список</a>
+      <a href="index.html#roadmap">Роадмап</a>
+      <a href="index.html#gaps">Прогалини</a>
+      <a href="index.html#visual">Візуал</a>
+      <a href="gdd.html">GDD</a>
+      <a href="ideas.html">Розвиток</a>
+      <a href="modules.html">Модулі</a>
+      <a href="models.html" class="active" aria-current="page">3D-моделі</a>
+    </nav>
+  </header>
+
+  <main class="modpage">
+    <div class="view-head">
+      <h2>3D-моделі проєкту</h2>
+      <p class="muted" id="mdMeta"></p>
+    </div>
+    <div class="kpis" id="mdKpis"></div>
+
+    <section class="mods-tabs" role="tablist" aria-label="Розділ">
+      <button class="btn active" data-tab="coverage" type="button">Покриття GDD</button>
+      <button class="btn" data-tab="catalog" type="button">Каталог паків</button>
+      <button class="btn" data-tab="guide" type="button">Арт-гайд</button>
+      <button class="btn" data-tab="risks" type="button">Ризики</button>
+    </section>
+
+    <!-- Покриття GDD -->
+    <section id="tab-coverage">
+      <p class="muted cov-legend"><span class="st found">є модель</span><span class="st placeholder">лише заглушка</span><span class="st missing">потрібно створити</span> Звірка предметів і об'єктів із GDD з назвами моделей у грі.</p>
+      <div id="coverage" class="cov-grid"></div>
+    </section>
+
+    <!-- Каталог -->
+    <section id="tab-catalog" hidden>
+      <div class="filters mods-filters">
+        <input id="pSearch" type="search" placeholder="Пошук: пак або модель…" aria-label="Пошук моделей">
+        <select id="pCat" aria-label="Категорія"></select>
+        <select id="pSort" aria-label="Сортування">
+          <option value="cat">За категоріями</option>
+          <option value="meshes">Найбільше моделей</option>
+          <option value="size">Найважчі</option>
+        </select>
+        <label class="check"><input id="pOwn" type="checkbox"> Лише власні</label>
+      </div>
+      <div id="packs"></div>
+    </section>
+
+    <!-- Арт-гайд -->
+    <section id="tab-guide" hidden>
+      <div class="cols">
+        <div class="card">
+          <h3>Технічні вимоги</h3>
+          <div class="table-wrap"><table class="guide-table">
+            <tbody>
+              <tr><td>Масштаб</td><td>1 одиниця = 1 метр; людина ≈ 1.8 м. Експорт FBX з Apply Transform.</td></tr>
+              <tr><td>Осі й півот</td><td>Y — вгору, Z — вперед. Півот: персонажі й пропси — внизу по центру; зброя — у точці хвату; двері — на петлі.</td></tr>
+              <tr><td>Полігони (ізометрія)</td><td>Агент і ключові NPC 15–25k; масові NPC 8–12k; зброя 3–8k; предмети в руці 0.5–3k; дрібні пропси до 1.5k.</td></tr>
+              <tr><td>LOD</td><td>Персонажі й великі пропси: LOD0–LOD2 (100 / 50 / 25%). Камера ізометрична й далека — дрібним предметам LOD не потрібні.</td></tr>
+              <tr><td>Текстури</td><td>Персонажі 2048, зброя 1024–2048, дрібні предмети 512–1024. Texel density ≈ 512 px/м для оточення.</td></tr>
+              <tr><td>Матеріали HDRP</td><td>HDRP/Lit: BaseColor, Normal (OpenGL → у Unity Normal map), MaskMap (R — Metallic, G — AO, B — Detail, A — Smoothness).</td></tr>
+              <tr><td>Колайдери</td><td>Прості примітиви або окремий низькополігональний UCX_-меш; ніколи MeshCollider по основному мешу.</td></tr>
+              <tr><td>Префаб</td><td>Корінь з компонентами гри (MonoItem, Interactable…), дочірній об'єкт Model з мешем — так модель можна замінити без зміни логіки.</td></tr>
+            </tbody>
+          </table></div>
+        </div>
+        <div class="card">
+          <h3>Найменування і теки</h3>
+          <ul class="rules">
+            <li><code>SM_</code> статичний меш, <code>SK_</code> скелетний, <code>A_</code> анімація, <code>M_</code> матеріал, <code>MI_</code> варіант матеріалу, <code>T_&lt;Name&gt;_BC/N/M</code> текстури, <code>P_</code> префаб.</li>
+            <li>Тільки латиниця, без пробілів: <code>SM_Pistol_PM12</code>, а не <code>Pistol A (1)</code>.</li>
+            <li>Структура: <code>Models/&lt;Зона&gt;/&lt;Ассет&gt;/{Meshes, Materials, Textures, Prefabs}</code>.</li>
+            <li>Сторонні паки — в <code>ThirdParty/&lt;Pack&gt;</code> з файлом <code>LICENSE.txt</code> і посиланням на джерело.</li>
+            <li>Варіанти кольору — через MI_ (Material Variant), а не копії мешу.</li>
+          </ul>
+          <h3 style="margin-top:16px">Стиль (за Figma gameplay_screen)</h3>
+          <ul class="rules">
+            <li>Нуар кінця 80-х — початку 90-х: теплі темні тони, латунь, темне дерево, мармур, тканина.</li>
+            <li>Акцентне світло — бурштин ламп і неону; червоний — лише сигнали небезпеки.</li>
+            <li>Зношеність і бруд у текстурах: світ живий, не «з коробки».</li>
+            <li>Силует читається згори: голова, плечі, зброя в руці мають бути помітні з ізометричної камери.</li>
+            <li>Sci-fi та фентезі-ассети (світлові мечі, сокири орків) — не в стилі гри.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px">
+        <h3>Чекліст приймання моделі</h3>
+        <ul class="checklist">
+          <li>Масштаб і півот перевірено поруч з манекеном 1.8 м</li>
+          <li>Назви файлів за конвенцією, без пробілів</li>
+          <li>Бюджет полігонів і текстур дотримано</li>
+          <li>Матеріал HDRP/Lit, MaskMap зібрано правильно</li>
+          <li>Колайдер простий, слой фізики правильний</li>
+          <li>Префаб з окремим дочірнім Model</li>
+          <li>Модель читається з ігрової камери при нічному освітленні</li>
+          <li>Для стороннього ассета — ліцензія записана</li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- Ризики -->
+    <section id="tab-risks" hidden>
+      <div id="risks" class="gap-grid"></div>
+    </section>
+  </main>
+
+  <script src="data/models.js"></script>
+  <script src="assets/models-page.js"></script>
+</body>
+</html>

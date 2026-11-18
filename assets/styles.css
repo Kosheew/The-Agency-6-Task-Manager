@@ -759,6 +759,53 @@ h1, h2, h3, h4, h5, .tabs a, .btn, .column header h3, .kpi .l, .chip, .sev, .eye
 .help { font-size: 13px; color: var(--muted); }
 .help ol { padding-left: 18px; margin: 6px 0; }
 
+/* ── Вхід через GitHub ────────────────────────────────── */
+.btn.login { gap: 7px; }
+.btn.login svg { flex: none; }
+.btn.login.on { border-color: var(--accent); background: rgba(214, 160, 72, .12); }
+.avatar { border-radius: 50%; border: 1px solid var(--accent); flex: none; object-fit: cover; }
+.login-tabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.login-tabs .btn.active { border-color: var(--accent); background: rgba(214, 160, 72, .14); }
+.login-steps { margin: 0; padding-left: 20px; display: grid; gap: 6px; color: #cfc4ad; font-size: 14px; animation: fadeIn .25s; }
+.login-steps[hidden] { display: none; }
+.login-steps code { color: var(--accent-2); }
+.verify-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.verify-row input { flex: 1 1 260px; font-family: var(--mono); font-size: 13px; }
+.verify-row .btn { gap: 7px; }
+.who-card { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid rgba(143, 191, 106, .5); border-radius: 10px; background: rgba(143, 191, 106, .08); animation: pop .3s cubic-bezier(.2, .8, .2, 1); }
+.who-card[hidden] { display: none; }
+.who-card div { display: grid; flex: 1; }
+.who-card b { font-family: var(--display); font-size: 18px; letter-spacing: .04em; }
+.who-card .muted { font-size: 13px; }
+.ok-mark { font-size: 22px; color: var(--good); }
+.activity a { color: inherit; text-decoration: none; }
+.activity a:hover b { color: var(--accent); }
+
+/* ── Сторінка «3D-моделі» ─────────────────────────────── */
+.cov-legend { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; font-size: 13px; margin: 0 0 14px; }
+.cov-legend .st { display: inline-flex; align-items: center; gap: 6px; color: var(--text); }
+.cov-legend .st::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
+.st.found { --c: var(--good); } .st.placeholder { --c: var(--warn); } .st.missing { --c: var(--bad); }
+.cov-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 12px; }
+.cov-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; animation: fadeUp .45s both; }
+.cov-card:nth-child(2) { animation-delay: .05s; } .cov-card:nth-child(3) { animation-delay: .1s; } .cov-card:nth-child(4) { animation-delay: .15s; }
+.cov-card:nth-child(5) { animation-delay: .2s; } .cov-card:nth-child(n+6) { animation-delay: .25s; }
+.cov-card h4 { font-size: 15px; text-transform: uppercase; margin-bottom: 8px; color: var(--accent); }
+.cov-card ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.st-row { display: grid; grid-template-columns: 12px 1fr; gap: 10px; align-items: start; }
+.st-row .st { width: 10px; height: 10px; border-radius: 50%; margin-top: 6px; background: var(--c); box-shadow: 0 0 8px var(--c); }
+.st-row .st.missing { animation: dotPulse 1.8s ease-out infinite; }
+.st-row b { font-weight: 600; font-size: 14px; }
+.st-row small { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.pack .mdesc { font-size: 11.5px; color: var(--muted); word-break: break-all; }
+.heavy { color: var(--bad); font-weight: 600; }
+.guide-table td { background: var(--panel); font-size: 14px; }
+.guide-table td:first-child { white-space: nowrap; font-family: var(--display); letter-spacing: .05em; text-transform: uppercase; color: var(--accent); }
+.guide-table tbody tr { cursor: auto; }
+.checklist { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.checklist li { position: relative; padding: 8px 10px 8px 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); font-size: 14px; color: #cfc4ad; }
+.checklist li::before { content: ""; position: absolute; left: 11px; top: 11px; width: 12px; height: 12px; border: 1.5px solid var(--accent); border-radius: 3px; }
+
 /* ── Responsive ───────────────────────────────────────── */
 @media (max-width: 1100px) {
   .cols { grid-template-columns: 1fr; }

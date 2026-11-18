@@ -177,7 +177,7 @@
     return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" });
   };
   function describe(e) {
-    const who = `<b>${esc(e.by)}</b>`, task = `<span class="mono">${esc(e.id)}</span> ${esc(e.title || "")}`;
+    const who = e.login ? `<a href="https://github.com/${esc(e.login)}" target="_blank" rel="noopener"><b>${esc(e.by)}</b></a>` : `<b>${esc(e.by)}</b>`, task = `<span class="mono">${esc(e.id)}</span> ${esc(e.title || "")}`;
     if (e.action === "move") return `${who} перемістив(ла) ${task}: ${esc(statusName[e.from] || e.from || "—")} → <b>${esc(statusName[e.to] || e.to)}</b>`;
     if (e.action === "create") return `${who} створив(ла) ${task}`;
     if (e.action === "delete") return `${who} видалив(ла) ${task}`;
@@ -198,50 +198,107 @@
     const b = $("#btnSync");
     if (!b || !SYNC) return;
     b.className = `sync ${SYNC.status}`;
-    b.innerHTML = `<span class="led"></span>${SYNC_LABEL[SYNC.status] || ""}${SYNC.canWrite() ? ` · ${esc(SYNC.name)}` : ""}`;
+    b.innerHTML = `<span class="led"></span>${SYNC_LABEL[SYNC.status] || ""}`;
     b.title = SYNC.error || (SYNC.canWrite() ? `Зміни зберігаються в ${SYNC.repoLabel}` : "Підключіть GitHub, щоб ваші зміни бачили інші");
   }
 
+  // ── Вхід через GitHub (верифікація токеном) ──────────
+  const GH_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`;
+  const avatarImg = (url, size = 22) => url ? `<img class="avatar" src="${esc(url)}&s=${size * 2}" width="${size}" height="${size}" alt="">` : "";
+
+  function renderLoginButton() {
+    const b = $("#btnLogin");
+    if (!b || !SYNC) return;
+    if (SYNC.canWrite()) {
+      b.className = "btn login on";
+      b.innerHTML = `${avatarImg(SYNC.avatar)}<span>${esc(SYNC.name)}</span>`;
+      b.title = `Увійшли як @${SYNC.login}. Клік — профіль і вихід`;
+    } else {
+      b.className = "btn login";
+      b.innerHTML = `${GH_ICON}<span>Увійти через GitHub</span>`;
+      b.title = "Верифікуватися, щоб ваші зміни бачила вся команда";
+    }
+  }
+
   function openSyncDialog() {
-    const connected = SYNC.canWrite();
+    if (SYNC.canWrite()) return openProfileDialog();
+    const localCount = Object.keys(store.overrides).length + store.custom.length;
     form.innerHTML = `
-      <div class="dlg-head"><div class="id">${esc(SYNC.repoLabel)} · state/board.json</div><h3>Спільна дошка</h3></div>
+      <div class="dlg-head"><div class="id">${esc(SYNC.repoLabel)}</div><h3>Вхід через GitHub</h3></div>
       <div class="dlg-body">
-        <p>Переміщення задач, нотатки, виконавці й нові задачі зберігаються комітом у репозиторій. Кожен, хто відкриває сайт, бачить ті самі статуси, а зміни інших з'являються автоматично (кожні 30–90 с) зі сповіщенням.</p>
-        ${connected ? `<p>Підключено як <b>${esc(SYNC.name)}</b>. Стан: ${esc(SYNC_LABEL[SYNC.status])}${SYNC.error ? ` — ${esc(SYNC.error)}` : ""}.</p>` : `
-        <div class="help"><b>Як підключитись (один раз):</b><ol>
-          <li>GitHub → Settings → Developer settings → <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Fine-grained tokens → Generate new token</a>.</li>
-          <li>Repository access: <b>Only select repositories</b> → ${esc(SYNC.repoLabel)}.</li>
-          <li>Permissions → Repository → <b>Contents: Read and write</b>. Більше нічого не потрібно.</li>
-          <li>Вставте токен нижче. Він зберігається лише в цьому браузері й надсилається тільки на api.github.com.</li>
-        </ol>Власник репозиторію має додати учасників команди як collaborators.</div>
-        <div class="field-grid">
-          <label class="field">Ваше ім'я (видно в історії)<input id="sName" value="${esc(SYNC.name === "Анонім" ? "" : SYNC.name)}" placeholder="Андрій"></label>
-          <label class="field">GitHub-токен<input id="sToken" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+        <p>Після входу ваші переміщення, нотатки й нові задачі бачить уся команда, а в історії стоїть ваше ім'я з GitHub. Ім'я не вводиться вручну — його підтверджує сам GitHub.</p>
+        <div class="login-tabs" role="tablist">
+          <button type="button" class="btn active" data-who="owner">Я власник репозиторію</button>
+          <button type="button" class="btn" data-who="member">Я учасник команди</button>
         </div>
-        ${Object.keys(store.overrides).length || store.custom.length ? `<label class="check"><input id="sMigrate" type="checkbox" checked> Перенести мої локальні зміни (${Object.keys(store.overrides).length + store.custom.length}) у спільну дошку</label>` : ""}
-        <p class="help" id="sError" style="color:var(--bad)"></p>`}
+        <ol class="login-steps" data-for="owner">
+          <li>Відкрийте <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Fine-grained token ↗</a>.</li>
+          <li><b>Repository access:</b> Only select repositories → ${esc(SYNC.repoLabel)}.</li>
+          <li><b>Permissions → Contents:</b> Read and write. Більше нічого.</li>
+          <li>Generate token → скопіюйте і вставте нижче.</li>
+        </ol>
+        <ol class="login-steps" data-for="member" hidden>
+          <li>Попросіть власника додати вас: Settings → Collaborators → Add people, і прийміть запрошення.</li>
+          <li>Відкрийте <a href="https://github.com/settings/tokens/new?scopes=public_repo&description=Agency%20Task%20Board" target="_blank" rel="noopener">Classic token ↗</a> — потрібна галочка <code>public_repo</code> вже стоятиме.</li>
+          <li>Generate token → скопіюйте і вставте нижче.</li>
+        </ol>
+        <div class="verify-row">
+          <input id="sToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_… або ghp_…" aria-label="GitHub-токен">
+          <button class="btn primary" type="button" id="sVerify">${GH_ICON}<span>Верифікувати</span></button>
+        </div>
+        <div id="sWho" class="who-card" hidden></div>
+        ${localCount ? `<label class="check"><input id="sMigrate" type="checkbox" checked> Перенести мої локальні зміни (${localCount}) у спільну дошку</label>` : ""}
+        <p class="help" id="sError" style="color:var(--bad)"></p>
+        <p class="help">Токен зберігається лише в цьому браузері й надсилається тільки на api.github.com. Його можна відкликати в налаштуваннях GitHub будь-коли.</p>
       </div>
-      <div class="dlg-foot">
-        ${connected ? `<button class="btn ghost danger" type="button" id="sOff">Відключитись</button>` : ""}
-        <div class="right"><a class="btn" href="${esc(SYNC.historyUrl)}" target="_blank" rel="noopener">Історія ↗</a><button class="btn" type="button" data-close>Закрити</button>
-        ${connected ? "" : `<button class="btn primary" type="button" id="sConnect">Підключити</button>`}</div>
-      </div>`;
-    $("#sOff", form)?.addEventListener("click", () => { SYNC.disconnect(); dlg.close(); toast("Відключено: зміни знову лише локальні"); render(); });
-    $("#sConnect", form)?.addEventListener("click", async () => {
-      const btn = $("#sConnect", form), err = $("#sError", form);
-      btn.disabled = true; btn.textContent = "Перевіряю…"; err.textContent = "";
+      <div class="dlg-foot"><div class="right"><button class="btn" type="button" data-close>Закрити</button></div></div>`;
+
+    $$(".login-tabs [data-who]", form).forEach((t) => t.addEventListener("click", () => {
+      $$(".login-tabs [data-who]", form).forEach((x) => x.classList.toggle("active", x === t));
+      $$(".login-steps", form).forEach((ol) => (ol.hidden = ol.dataset.for !== t.dataset.who));
+    }));
+
+    const verify = async () => {
+      const btn = $("#sVerify", form), label = $("#sVerify span", form), err = $("#sError", form), who = $("#sWho", form);
+      btn.disabled = true; label.textContent = "Перевіряю…"; err.textContent = ""; who.hidden = true;
       try {
-        await SYNC.connect($("#sName").value, $("#sToken").value);
+        const me = await SYNC.connect($("#sToken").value);
+        who.hidden = false;
+        who.innerHTML = `${avatarImg(me.avatar, 44)}<div><b>${esc(me.name)}</b><span class="muted">@${esc(me.login)} · право запису підтверджено</span></div><span class="ok-mark">✓</span>`;
         if ($("#sMigrate", form)?.checked) {
           Object.entries(store.overrides).forEach(([id, patch]) => SYNC.patch(id, patch, getTask(id)));
           store.custom.forEach((t) => SYNC.create(t));
           store = { overrides: {}, custom: [] }; save();
         }
-        dlg.close(); toast("Підключено: зміни тепер бачать усі"); render();
+        renderLoginButton(); renderSyncButton(); render();
+        toast(`Ви увійшли як ${me.name}`);
+        setTimeout(() => dlg.open && dlg.close(), 1400);
       } catch (e) {
-        err.textContent = e.message; btn.disabled = false; btn.textContent = "Підключити";
+        err.textContent = e.message;
+        btn.disabled = false; label.textContent = "Верифікувати";
       }
+    };
+    $("#sVerify", form).addEventListener("click", verify);
+    $("#sToken", form).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); verify(); } });
+    if (!dlg.open) dlg.showModal();
+    $("#sToken", form).focus();
+  }
+
+  function openProfileDialog() {
+    const mine = (shared().log || []).filter((e) => e.login === SYNC.login).length;
+    form.innerHTML = `
+      <div class="dlg-head"><div class="id">${esc(SYNC.repoLabel)}</div><h3>Ваш профіль</h3></div>
+      <div class="dlg-body">
+        <div class="who-card">${avatarImg(SYNC.avatar, 44)}<div><b>${esc(SYNC.name)}</b><span class="muted">@${esc(SYNC.login)} · ${mine} змін на дошці</span></div><span class="ok-mark">✓</span></div>
+        <p>Синхронізація: <b>${esc(SYNC_LABEL[SYNC.status])}</b>${SYNC.error ? ` — ${esc(SYNC.error)}` : ""}.</p>
+      </div>
+      <div class="dlg-foot">
+        <button class="btn ghost danger" type="button" id="sOff">Вийти</button>
+        <div class="right"><a class="btn" href="https://github.com/${esc(SYNC.login)}" target="_blank" rel="noopener">GitHub ↗</a><a class="btn" href="${esc(SYNC.historyUrl)}" target="_blank" rel="noopener">Історія ↗</a><button class="btn" type="button" data-close>Закрити</button></div>
+      </div>`;
+    $("#sOff", form).addEventListener("click", () => {
+      SYNC.disconnect(); dlg.close(); renderLoginButton(); render();
+      toast("Ви вийшли: зміни знову лише локальні");
     });
     if (!dlg.open) dlg.showModal();
   }
@@ -258,7 +315,9 @@
       render();
     };
     $("#btnSync").addEventListener("click", openSyncDialog);
+    $("#btnLogin")?.addEventListener("click", openSyncDialog);
     renderSyncButton();
+    renderLoginButton();
     SYNC.start();
   }
 
