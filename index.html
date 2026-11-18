@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agency Task Board</title>
+  <meta name="description" content="Менеджер задач проєкту The Agency 6: дошка, роадмап, прогалини, візуальні макети.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">A6</span>
+      <div>
+        <h1 id="projectName">The Agency 6</h1>
+        <p id="projectSubtitle" class="muted"></p>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Розділи">
+      <a href="#overview" data-view="overview">Огляд</a>
+      <a href="#board" data-view="board">Дошка</a>
+      <a href="#list" data-view="list">Список</a>
+      <a href="#roadmap" data-view="roadmap">Роадмап</a>
+      <a href="#gaps" data-view="gaps">Прогалини</a>
+      <a href="#visual" data-view="visual">Візуал</a>
+    </nav>
+    <div class="actions">
+      <button class="btn primary" id="btnNew" type="button">+ Задача</button>
+      <button class="btn" id="btnExport" type="button" title="Завантажити всі задачі як JSON">Експорт</button>
+      <label class="btn" title="Завантажити JSON, експортований раніше">Імпорт<input id="fileImport" type="file" accept="application/json" hidden></label>
+      <button class="btn ghost" id="btnReset" type="button" title="Скинути локальні зміни">Скинути</button>
+    </div>
+  </header>
+
+  <section class="filters" id="filters" hidden>
+    <input id="fSearch" type="search" placeholder="Пошук: назва, опис, ID…" aria-label="Пошук">
+    <select id="fPhase" aria-label="Фаза"></select>
+    <select id="fEpic" aria-label="Епік"></select>
+    <select id="fPriority" aria-label="Пріоритет">
+      <option value="">Усі пріоритети</option>
+      <option>P0</option><option>P1</option><option>P2</option><option>P3</option>
+    </select>
+    <select id="fType" aria-label="Тип"></select>
+    <label class="check"><input id="fHideDone" type="checkbox"> Сховати готові</label>
+  </section>
+
+  <main id="app">
+    <section class="view" id="view-overview"></section>
+    <section class="view" id="view-board"></section>
+    <section class="view" id="view-list"></section>
+    <section class="view" id="view-roadmap"></section>
+    <section class="view" id="view-gaps"></section>
+
+    <section class="view" id="view-visual">
+      <div class="view-head">
+        <h2>Візуальні макети</h2>
+        <p class="muted">Приблизний вигляд ключових екранів за GDD. Це орієнтир для UI-задач, а не фінальний арт.</p>
+      </div>
+
+      <div class="mock-grid">
+        <!-- Діалог -->
+        <figure class="mock">
+          <figcaption><b>Діалогове вікно</b> · AG-016…AG-022 · стиль Disco Elysium</figcaption>
+          <div class="scene scene-dialogue">
+            <div class="scene-bg"><span class="city"></span></div>
+            <aside class="dlg-panel">
+              <div class="dlg-history">
+                <p><span class="who npc">ВАЛЬТЕР</span> — Я вже казав вашим: у ту ніч я був на вокзалі.</p>
+                <p><span class="who me">АГЕНТ</span> — Квиток. Покажи квиток.</p>
+                <p class="inner"><span class="who think">ЕНЦИКЛОПЕДІЯ</span> — Компостер вокзалу ставить дату синім. Тут — чорним.</p>
+              </div>
+              <div class="dlg-last"><span class="who npc">ВАЛЬТЕР</span> — Ну… вони змінили чорнило. Буває.<span class="caret"></span></div>
+              <ol class="dlg-options">
+                <li class="opt">1. — Чорнило? У вокзального компостера? <em>[Квиток]</em></li>
+                <li class="opt hover">2. — Ще одне слово брехні — і я тебе зламаю.</li>
+                <li class="opt locked">3. — Невідомо</li>
+                <li class="opt">4. — Гаразд. Ідемо далі.</li>
+              </ol>
+            </aside>
+            <button class="portrait" type="button" title="Відкрити досьє">
+              <span class="face"></span><span class="tag">ДОСЬЄ</span>
+            </button>
+          </div>
+        </figure>
+
+        <!-- Верстак -->
+        <figure class="mock">
+          <figcaption><b>Верстак модулів</b> · AG-025…AG-030</figcaption>
+          <div class="scene scene-bench">
+            <div class="bench-weapon">
+              <div class="gun">
+                <span class="g-body"></span><span class="g-barrel"></span><span class="g-grip"></span>
+                <span class="slot s-optic filled" title="Оптика: приціл T2">◎</span>
+                <span class="slot s-barrel filled" title="Дуло: глушник">≋</span>
+                <span class="slot s-under" title="Підствольний: порожньо">+</span>
+                <span class="slot s-mag" title="Магазин: порожньо">+</span>
+              </div>
+              <div class="gun-name">PM-12 «Comrade» <span class="mk">Mk II</span></div>
+            </div>
+            <div class="bench-side">
+              <h4>Статистика</h4>
+              <dl class="stats">
+                <dt>Damage</dt><dd><i style="--v:.42"></i>20</dd>
+                <dt>Range</dt><dd><i style="--v:.3"></i>15 м</dd>
+                <dt>Noise</dt><dd class="good"><i style="--v:.4"></i>40 <s>80</s></dd>
+                <dt>Spread</dt><dd class="good"><i style="--v:.35"></i>−30%</dd>
+                <dt>Витривалість/постріл</dt><dd class="bad"><i style="--v:.55"></i>9%</dd>
+              </dl>
+              <h4>Інвентар модулів</h4>
+              <div class="mods">
+                <span class="mod" title="Глушник">≋<small>T1</small></span>
+                <span class="mod" title="Приціл">◎<small>T2</small></span>
+                <span class="mod rare" title="Лазерний ЦВ">✦<small>T3</small></span>
+                <span class="mod empty"></span><span class="mod empty"></span>
+              </div>
+              <div class="bench-cta"><span class="price">120 GC</span><span class="btnlike">Встановити</span></div>
+            </div>
+          </div>
+        </figure>
+
+        <!-- Інвентар -->
+        <figure class="mock">
+          <figcaption><b>Інвентар, руки та докази</b> · AG-031, AG-032</figcaption>
+          <div class="scene scene-inv">
+            <div class="hands">
+              <div class="hand"><span class="key">R</span><b>Ліва</b><span class="item">UV-ліхтар</span></div>
+              <div class="hand"><span class="key">LMB</span><b>Права</b><span class="item">Пістолет</span></div>
+              <div class="hand pocket"><span class="key">F</span><b>Кишеня</b><span class="item">Візитка</span></div>
+            </div>
+            <div class="inv-grid">
+              <span class="cell w">⌐╦</span><span class="cell w">╤═</span><span class="cell m">✚</span><span class="cell m">✚</span><span class="cell t">◉</span><span class="cell a">☕</span><span class="cell a">✧</span>
+              <span class="cell i">◐</span><span class="cell x">⚿</span><span class="cell x">⚿</span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span>
+              <span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span><span class="cell"></span>
+            </div>
+            <div class="inv-foot"><span>10 / 21 слотів</span><span>Сортувати: <b>тип</b> ▾</span><span class="gc">◈ 245 GC</span></div>
+            <aside class="evidence">
+              <h4>Докази · 4</h4>
+              <ul><li class="new">Квиток з чорною датою</li><li>Відбитки на ручці</li><li>Аудіозапис з таверни</li><li>Візитка інформатора</li></ul>
+            </aside>
+          </div>
+        </figure>
+
+        <!-- Психотип -->
+        <figure class="mock">
+          <figcaption><b>Вибір психотипу</b> · AG-012, AG-013</figcaption>
+          <div class="scene scene-psy">
+            <div class="psy hot">
+              <span class="glyph">✷</span><h5>Гаряча голова</h5>
+              <q>Справжня бомба уповільненої дії.</q>
+              <ul><li>+ витривалий у діях</li><li>− стрес накопичується швидше</li><li>Ближній бій</li></ul>
+            </div>
+            <div class="psy ind selected">
+              <span class="glyph">◈</span><h5>Індивідуаліст</h5>
+              <q>Директор не в захваті від такої конкуренції.</q>
+              <ul><li>+ стрес знімається успіхом у діалозі</li><li>− провал б'є сильніше</li><li>Середня дистанція</li></ul>
+            </div>
+            <div class="psy enc">
+              <span class="glyph">❖</span><h5>Енциклопедія</h5>
+              <q>Як його взагалі допустили до польової роботи?</q>
+              <ul><li>+ стійкий до стресу</li><li>− слабка витривалість</li><li>Дальня дистанція</li></ul>
+            </div>
+          </div>
+        </figure>
+
+        <!-- HUD стани -->
+        <figure class="mock wide">
+          <figcaption><b>«Невидима механіка»: стани персонажа</b> · AG-010 · ресурси показуємо ефектами, не числами</figcaption>
+          <div class="scene scene-states">
+            <div class="state ok"><span class="iso"></span><b>Норма</b><small>чиста картинка</small></div>
+            <div class="state tired"><span class="iso"></span><b>Виснаження &lt; 15%</b><small>розмиті краї, дихання, без бігу</small></div>
+            <div class="state hurt"><span class="iso"></span><b>HP &lt; 50%</b><small>кров по краях, хромання, розкид +</small></div>
+            <div class="state stress"><span class="iso"></span><b>Стрес &gt; 70</b><small>тремтіння, шепіт, фальшиві зачіпки</small></div>
+          </div>
+        </figure>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="taskDialog" class="dialog">
+    <form method="dialog" id="taskForm"></form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="data/tasks.js"></script>
+  <script src="assets/app.js"></script>
+</body>
+</html>
