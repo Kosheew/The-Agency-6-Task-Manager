@@ -28,16 +28,35 @@
 python tools/gen_modules.py "D:/Git/MyProjects/Agency-6-HDRP"
 ```
 
-## Спільна дошка (синхронізація)
+**3D-моделі (`models.html`)** — покриття предметів із GDD моделями, каталог паків, арт-гайд, ризики. Оновлення: `python tools/gen_assets.py "D:/Git/MyProjects/Agency-6-HDRP"`.
 
-Статуси, нотатки, виконавці й нові задачі можна зберігати спільно для всієї команди:
+**Звук (`sound.html`)** — покриття потреб гри звуками, звук станів персонажа, каталог аудіо, саунд-гайд, ризики. Оновлення: `python tools/gen_audio.py "D:/Git/MyProjects/Agency-6-HDRP"`.
 
-1. Кнопка **«Увійти через GitHub»** у шапці → вкладка «Я власник» (fine-grained токен, лише цей репозиторій, **Contents: Read and write**) або «Я учасник команди» (classic токен з `public_repo`, після запрошення в collaborators) → вставити токен → **Верифікувати**. Сайт сам отримує з GitHub логін, ім'я й аватар — ім'я вручну не вводиться.
-2. Після підключення кожна зміна стає комітом у `state/board.json` (повідомлення виду `board: AG-006 → В роботі — Андрій`).
-3. Інші бачать зміни автоматично: сайт перевіряє стан кожні 30–90 с, показує сповіщення і стрічку «Остання активність команди» на Огляді.
-4. Без токена дошка показує спільний стан у режимі перегляду; власні зміни тоді лише локальні.
+**Живий прогрес на всіх сторінках** — під шапкою кожної сторінки смуга прогресу гри; чипи задач (`data-task`) і блоки прогресу (`data-progress="epic:AUD"`, `phase:S`, `tasks:AG-001,AG-002`) оновлюються наживо, щойно хтось змінює дошку.
 
-Токен зберігається тільки в localStorage браузера і надсилається лише на `api.github.com`. Учасників команди треба додати в репозиторій як collaborators. Коміти в `state/` не перезбирають сайт.
+## Спільна дошка (Supabase + вхід через GitHub)
+
+Статуси, нотатки, виконавці й нові задачі зберігаються в Supabase. Читати може будь-хто, редагувати — люди зі списку редакторів після входу через GitHub. Зміни інших з'являються миттєво (Realtime), автор і журнал ставить сама база — підробити ім'я неможливо. Токени не потрібні.
+
+### Налаштування (один раз, власник, ~15 хв)
+
+1. **Проєкт.** [supabase.com/dashboard](https://supabase.com/dashboard) → New project (безкоштовний план).
+2. **База.** SQL Editor → New query → вставити [`supabase/schema.sql`](supabase/schema.sql) → у кінці файлу вписати логіни GitHub редакторів → **Run**.
+3. **GitHub OAuth App.** [github.com/settings/applications/new](https://github.com/settings/applications/new):
+   - Homepage URL: `https://kosheew.github.io/The-Agency-6-Task-Manager/`
+   - Authorization callback URL: `https://<project-ref>.supabase.co/auth/v1/callback` (точна адреса — у Supabase → Authentication → Providers → GitHub).
+   - Згенерувати Client secret.
+4. **Провайдер.** Supabase → Authentication → Providers → **GitHub** → Enable → вставити Client ID і Client secret → Save.
+5. **Адреси повернення.** Authentication → URL Configuration:
+   - Site URL: `https://kosheew.github.io/The-Agency-6-Task-Manager/`
+   - Redirect URLs: `https://kosheew.github.io/The-Agency-6-Task-Manager/**` (і `http://127.0.0.1:8765/**` для локальної перевірки).
+6. **Ключі.** Project Settings → API → скопіювати **Project URL** і **anon public** key у [`data/config.js`](data/config.js) → закомітити й запушити. anon key публічний за задумом; **service_role key сюди не вставляйте**.
+
+### Редактори
+
+Додати людину — Supabase → Table Editor → `board_members` → Insert row → `github_login`. Людина без доступу після входу бачить статус «гість» і свій логін, щоб передати його власнику.
+
+Поки `data/config.js` порожній, дошка працює локально (зміни видно лише у вашому браузері).
 
 ## Де живуть дані
 
@@ -49,10 +68,16 @@ python tools/gen_modules.py "D:/Git/MyProjects/Agency-6-HDRP"
 ## Структура
 
 ```
-index.html        розмітка, вкладки, візуальні макети
-assets/styles.css тема (темний ретро-кіберпанк), адаптив до 375 px
-assets/app.js     логіка: рендер, фільтри, drag&drop, картка задачі, експорт
-data/tasks.js     дані проєкту
+index.html, gdd.html, ideas.html, modules.html, models.html, sound.html   сторінки
+assets/styles.css      тема в стилі HUD гри, адаптив до 375 px
+assets/app.js          дошка: рендер, фільтри, drag&drop, картка задачі, вхід
+assets/sync.js         спільна дошка через Supabase (вхід GitHub, Realtime)
+assets/board-live.js   живий прогрес дошки на всіх сторінках
+data/tasks.js          задачі, фази, епіки, прогалини
+data/config.js         адреса і публічний ключ Supabase
+data/*.js              згенеровані каталоги (модулі, 3D, звук)
+supabase/schema.sql    таблиці, права доступу, тригери, Realtime
+tools/gen_*.py         генератори каталогів з репозиторію гри
 ```
 
 ## Нумерація

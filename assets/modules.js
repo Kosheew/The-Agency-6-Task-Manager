@@ -38,7 +38,7 @@
     ? `<a class="chip dep" href="#m-${esc(name)}" data-jump="${esc(name)}">${esc(name)}</a>` : `<span class="chip">${esc(name)}</span>`;
   const taskChip = (id) => {
     const t = taskById[id];
-    return `<a class="chip ${t?.type === "bug" ? "bug" : ""}" href="index.html?task=${encodeURIComponent(id)}#list" title="${esc(t?.title || "")}">${esc(id)}</a>`;
+    return `<a class="chip ${t?.type === "bug" ? "bug" : ""}" data-task="${esc(id)}" href="index.html?task=${encodeURIComponent(id)}#list" title="${esc(t?.title || "")}">${esc(id)}</a>`;
   };
   const list = (title, items, fn = (x) => `<code>${esc(x)}</code>`) =>
     items.length ? `<div class="mrow"><h5>${title}</h5><div class="mvals">${items.map(fn).join(" ")}</div></div>` : "";
@@ -63,6 +63,7 @@
         ${list("Конфіги (SO)", m.configs)}
         ${list("Залежить від", m.deps, chipLink)}
         ${list("Використовують", m.usedBy, chipLink)}
+        ${m.tasks.length ? `<div data-progress="tasks:${m.tasks.map(esc).join(",")}" data-label="Задачі модуля"></div>` : ""}
         ${list("Задачі на дошці", m.tasks, taskChip)}
       </div>
     </details>`;
@@ -93,6 +94,7 @@
       out.innerHTML = `<div class="mgrid">${rows.map(card).join("")}</div>`;
     }
     $$(".mgrid .mcard", out).forEach((el, i) => el.style.setProperty("--i", Math.min(i, 20)));
+    window.BoardLive?.update();   // живі статуси задач у щойно намальованих картках
   }
 
   $$(".mods-filters input, .mods-filters select").forEach((el) => el.addEventListener("input", render));

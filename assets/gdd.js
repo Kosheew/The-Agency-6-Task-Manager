@@ -93,14 +93,14 @@
       if (!epics) return;
       const tasks = P.tasks.filter((t) => epics.includes(t.epic) && t.phase !== "0");
       if (!tasks.length) return;
-      const done = tasks.filter((t) => taskStatus(t) === "done").length;
+      // Прогрес і статуси чипів оновлює board-live.js — наживо, зі спільної дошки
       const box = document.createElement("aside");
       box.className = "gdd-tasks";
       box.innerHTML = `
-        <div class="gdd-tasks-head"><b>Задачі розділу</b><span class="muted">${done} / ${tasks.length} готово</span></div>
+        <div data-progress="epic:${epics.join(",")}" data-label="Реалізація розділу"></div>
         <div class="gdd-tasks-list">${tasks.map((t) => {
           const st = taskStatus(t);
-          return `<a class="chip status-${esc(st)}" href="index.html?task=${encodeURIComponent(t.id)}#list" title="${esc(t.title)} — ${esc(STATUS_NAME[st] || st)}">${st === "done" ? "✓ " : ""}${esc(t.id)}</a>`;
+          return `<a class="chip status-${esc(st)}" data-task="${esc(t.id)}" href="index.html?task=${encodeURIComponent(t.id)}#list" title="${esc(t.title)} — ${esc(STATUS_NAME[st] || st)}">${st === "done" ? "✓ " : ""}${esc(t.id)}</a>`;
         }).join("")}</div>`;
       section.appendChild(box);
     });

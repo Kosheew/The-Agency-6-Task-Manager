@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="stylesheet" href="assets/styles.css">
+  <link rel="stylesheet" href="assets/styles.css?v=20261118-4">
 </head>
 <body class="ideas-page">
   <header class="topbar">
@@ -31,6 +31,7 @@
       <a href="ideas.html" class="active" aria-current="page">Розвиток</a>
       <a href="modules.html">Модулі</a>
       <a href="models.html">3D-моделі</a>
+      <a href="sound.html">Звук</a>
     </nav>
   </header>
 
@@ -39,6 +40,7 @@
       <p class="eyebrow">Стратегія · оновлено 18.11.2026</p>
       <h2>Куди рухати Agency далі</h2>
       <p class="lead">Спершу стабільна гра й один вертикальний зріз, потім глибина систем, і лише після релізу — DLC та моди. Нижче рішення, які треба ухвалити, ідеї з оцінкою зусиль і план розширення.</p>
+      <div class="hero-progress" data-progress="phase:S,A,B,C,D,E" data-label="Прогрес розробки"></div>
       <nav class="ideas-nav" aria-label="Розділи сторінки">
         <a href="#questions">Ключові питання</a>
         <a href="#principles">Важливі моменти</a>
@@ -60,7 +62,7 @@
 
       <div class="q-grid">
         <article class="q-card">
-          <div class="q-top"><span class="chip p0">Блокує діалоги</span><span class="chip">AG-047</span></div>
+          <div class="q-top"><span class="chip p0">Блокує діалоги</span><span class="chip" data-task="AG-047">AG-047</span></div>
           <h4>Звідки береться успіх репліки?</h4>
           <ul class="opts">
             <li><b>Детерміновані пороги.</b> Доступно, якщо є доказ / предмет / потрібний рівень ресурсу. Прозоро, без сейвскаму, але передбачувано.</li>
@@ -71,7 +73,7 @@
         </article>
 
         <article class="q-card">
-          <div class="q-top"><span class="chip p1">UX</span><span class="chip">AG-011</span></div>
+          <div class="q-top"><span class="chip p1">UX</span><span class="chip" data-task="AG-011">AG-011</span></div>
           <h4>Показувати ресурси чи ховати?</h4>
           <ul class="opts">
             <li><b>Повністю приховати.</b> Максимальна імерсія, але новачки не розуміють, що відбувається.</li>
@@ -82,7 +84,7 @@
         </article>
 
         <article class="q-card">
-          <div class="q-top"><span class="chip p1">Розслідування</span><span class="chip">AG-049</span></div>
+          <div class="q-top"><span class="chip p1">Розслідування</span><span class="chip" data-task="AG-049">AG-049</span></div>
           <h4>Інструменти — будь-коли чи в точках?</h4>
           <ul class="opts">
             <li><b>Тільки в точках (Condemned).</b> Простий дизайн рівнів, але гравця ведуть за руку.</li>
@@ -92,7 +94,7 @@
         </article>
 
         <article class="q-card">
-          <div class="q-top"><span class="chip p0">Надійність</span><span class="chip">BUG-04</span></div>
+          <div class="q-top"><span class="chip p0">Надійність</span><span class="chip" data-task="BUG-04">BUG-04</span></div>
           <h4>Як зберігається гра?</h4>
           <ul class="opts">
             <li><b>Тільки ручні сейви.</b> Гравець втрачає прогрес після краху.</li>
@@ -103,7 +105,7 @@
         </article>
 
         <article class="q-card">
-          <div class="q-top"><span class="chip p1">Світ</span><span class="chip">AG-039</span></div>
+          <div class="q-top"><span class="chip p1">Світ</span><span class="chip" data-task="AG-039">AG-039</span></div>
           <h4>Наскільки складна репутація?</h4>
           <ul class="opts">
             <li><b>Тільки фракції.</b> Багато умов у кожному діалозі.</li>
@@ -114,7 +116,7 @@
         </article>
 
         <article class="q-card">
-          <div class="q-top"><span class="chip p2">Контент</span><span class="chip">AG-045</span></div>
+          <div class="q-top"><span class="chip p2">Контент</span><span class="chip" data-task="AG-045">AG-045</span></div>
           <h4>Скільки гілок у сюжеті?</h4>
           <ul class="opts">
             <li><b>Повні окремі гілки.</b> Виглядає круто, але обсяг тексту росте в рази.</li>
@@ -124,7 +126,7 @@
         </article>
 
         <article class="q-card">
-          <div class="q-top"><span class="chip p2">Доступ</span><span class="chip">AG-036</span></div>
+          <div class="q-top"><span class="chip p2">Доступ</span><span class="chip" data-task="AG-036">AG-036</span></div>
           <h4>Яка мінігра зламу?</h4>
           <ul class="opts">
             <li class="rec"><b>Одна механічна мінігра у зрізі.</b> Проста послідовність як у Chaos Theory, 3–10 с, з шумом і стресом.</li>
@@ -156,13 +158,13 @@
       </header>
       <ol class="principles">
         <li><b>Стабільність перед контентом.</b> Жодної нової фічі, поки діалог можна зламати, а сейв — втратити (фаза S).</li>
-        <li><b>Кожен бар'єр має обхід.</b> Провал відкриває нову сцену, а не глухий кут (AG-048).</li>
+        <li><b>Кожен бар'єр має обхід.</b> Провал відкриває нову сцену, а не глухий кут (<span class="chip" data-task="AG-048">AG-048</span>).</li>
         <li><b>Вертикальний зріз до всього іншого.</b> Одна справа на 30–45 хв, яку проходить кожен психотип, важливіша за десять систем.</li>
         <li><b>Жоден психотип не домінує.</b> Відмінність — у способі пройти сцену, а не в цифрах урону.</li>
         <li><b>Дані — в ScriptableObject.</b> Справи, діалоги, предмети, модулі описуються даними: це база для балансу, локалізації й модів.</li>
         <li><b>Локалізація з першого дня.</b> Жодних рядків у коді; таблиці Unity Localization для UA / EN.</li>
         <li><b>Тести на формули й збереження.</b> Ціну рішень і сейви перевіряють автотести, а не гравці.</li>
-        <li><b>Плейтест кожні 2 тижні.</b> 3–5 людей без підказок; записуємо, де застрягли (AG-050).</li>
+        <li><b>Плейтест кожні 2 тижні.</b> 3–5 людей без підказок; записуємо, де застрягли (<span class="chip" data-task="AG-050">AG-050</span>).</li>
       </ol>
     </section>
 
@@ -322,8 +324,8 @@
         <p class="muted">Кожен етап має чіткий критерій переходу далі.</p></div>
       </header>
       <ol class="release">
-        <li class="now"><span class="dot"></span><div><h4>Стабілізація</h4><p>Критичні баги діалогів, збережень і бою закриті; є автотести на сейви.</p><span class="gate">Перехід: жодного софтлоку за 2 години гри</span></div></li>
-        <li><span class="dot"></span><div><h4>Вертикальний зріз</h4><p>Одна справа на 30–45 хв, три психотипи, ціна рішень, модуль зброї, стелс.</p><span class="gate">Перехід: 5 плейтестерів проходять без допомоги</span></div></li>
+        <li class="now"><span class="dot"></span><div><h4>Стабілізація</h4><div data-progress="phase:S" data-label="Фаза S"></div><p>Критичні баги діалогів, збережень і бою закриті; є автотести на сейви.</p><span class="gate">Перехід: жодного софтлоку за 2 години гри</span></div></li>
+        <li><span class="dot"></span><div><h4>Вертикальний зріз</h4><div data-progress="tasks:AG-044,AG-048,BUG-02,BUG-04,BUG-06" data-label="Задачі зрізу"></div><p>Одна справа на 30–45 хв, три психотипи, ціна рішень, модуль зброї, стелс.</p><span class="gate">Перехід: 5 плейтестерів проходять без допомоги</span></div></li>
         <li><span class="dot"></span><div><h4>Демо</h4><p>Сторінка Steam, демо на Next Fest, збір вішлистів і відгуків.</p><span class="gate">Перехід: стабільна збірка, локалізація UA / EN</span></div></li>
         <li><span class="dot"></span><div><h4>Ранній доступ (опційно)</h4><p>2–3 справи; оновлення кожні 1–2 місяці за відгуками.</p><span class="gate">Перехід: позитивні відгуки на демо</span></div></li>
         <li><span class="dot"></span><div><h4>Реліз 1.0</h4><p>Повна історія, кінцівки за репутацією, досягнення, Steam Deck.</p><span class="gate">Перехід: усі P0/P1 закриті</span></div></li>
@@ -331,6 +333,10 @@
       </ol>
     </section>
   </main>
-  <script src="assets/ideas.js"></script>
+  <script src="data/tasks.js?v=20261118-4"></script>
+  <script src="data/config.js?v=20261118-4"></script>
+  <script src="assets/sync.js?v=20261118-4"></script>
+  <script src="assets/ideas.js?v=20261118-4"></script>
+  <script src="assets/board-live.js?v=20261118-4"></script>
 </body>
 </html>

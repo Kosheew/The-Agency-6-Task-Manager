@@ -187,119 +187,104 @@
   function activityHtml() {
     if (!SYNC) return `<p class="empty">Синхронізація недоступна</p>`;
     const log = (shared().log || []).slice(0, 25);
-    const help = SYNC.canWrite() ? "" : `<p class="help">Тут видно, хто і що перемістив. Щоб ваші зміни теж бачили інші, натисніть кнопку синхронізації вгорі.</p>`;
+    const help = SYNC.canWrite() ? "" : `<p class="help">${SYNC.configured ? "Тут видно, хто і що перемістив. Щоб ваші зміни теж бачили інші, увійдіть через GitHub." : "Спільну дошку ще не налаштовано — журнал з'явиться після підключення Supabase."}</p>`;
     if (!log.length) return help + `<p class="empty">Поки що ніхто нічого не переміщував</p>`;
     return help + `<ul class="activity">${log.map((e) => `<li data-open="${esc(e.id)}" class="${freshKeys.has(e.at + e.id) ? "new" : ""}"><time datetime="${esc(e.at)}">${timeAgo(e.at)}</time><span>${describe(e)}</span></li>`).join("")}</ul>
-      <p class="help" style="margin-top:8px"><a href="${esc(SYNC.historyUrl)}" target="_blank" rel="noopener">Повна історія змін у git ↗</a></p>`;
+`;
   }
 
-  const SYNC_LABEL = { idle: "Підключення…", readonly: "Лише перегляд", ok: "Синхронізовано", busy: "Зберігаю…", err: "Помилка синхронізації" };
+  const SYNC_LABEL = { idle: "Підключення…", offline: "Локальний режим", readonly: "Лише перегляд", ok: "Наживо", busy: "Зберігаю…", err: "Помилка синхронізації" };
   function renderSyncButton() {
     const b = $("#btnSync");
     if (!b || !SYNC) return;
     b.className = `sync ${SYNC.status}`;
     b.innerHTML = `<span class="led"></span>${SYNC_LABEL[SYNC.status] || ""}`;
-    b.title = SYNC.error || (SYNC.canWrite() ? `Зміни зберігаються в ${SYNC.repoLabel}` : "Підключіть GitHub, щоб ваші зміни бачили інші");
+    b.title = SYNC.error || (SYNC.canWrite() ? "Зміни одразу бачить уся команда" : SYNC.configured ? "Увійдіть через GitHub, щоб ваші зміни бачили інші" : "Спільну дошку ще не налаштовано — зміни лише локальні");
   }
 
-  // ── Вхід через GitHub (верифікація токеном) ──────────
+  // ── Вхід через GitHub (Supabase) ─────────────────────
   const GH_ICON = `<svg viewBox="0 0 16 16" width="15" height="15" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>`;
-  const avatarImg = (url, size = 22) => url ? `<img class="avatar" src="${esc(url)}&s=${size * 2}" width="${size}" height="${size}" alt="">` : "";
+  const avatarImg = (url, size = 22) => url ? `<img class="avatar" src="${esc(url)}${url.includes("?") ? "&" : "?"}s=${size * 2}" width="${size}" height="${size}" alt="">` : "";
 
   function renderLoginButton() {
     const b = $("#btnLogin");
     if (!b || !SYNC) return;
-    if (SYNC.canWrite()) {
-      b.className = "btn login on";
-      b.innerHTML = `${avatarImg(SYNC.avatar)}<span>${esc(SYNC.name)}</span>`;
-      b.title = `Увійшли як @${SYNC.login}. Клік — профіль і вихід`;
+    if (SYNC.signedIn()) {
+      b.className = `btn login on${SYNC.isMember ? "" : " guest"}`;
+      b.innerHTML = `${avatarImg(SYNC.avatar)}<span>${esc(SYNC.name)}${SYNC.isMember ? "" : " · гість"}</span>`;
+      b.title = SYNC.isMember ? `Увійшли як @${SYNC.login}` : `@${SYNC.login} не в списку редакторів — зміни лише локальні`;
     } else {
       b.className = "btn login";
       b.innerHTML = `${GH_ICON}<span>Увійти через GitHub</span>`;
-      b.title = "Верифікуватися, щоб ваші зміни бачила вся команда";
+      b.title = SYNC.configured ? "Увійти, щоб ваші зміни бачила вся команда" : "Спільну дошку ще не налаштовано";
     }
   }
 
+  function localChangesCount() { return Object.keys(store.overrides).length + store.custom.length; }
+  function migrateLocal() {
+    Object.entries(store.overrides).forEach(([id, patch]) => SYNC.patch(id, patch, getTask(id)));
+    store.custom.forEach((t) => SYNC.create(t));
+    store = { overrides: {}, custom: [] }; save();
+  }
+
   function openSyncDialog() {
-    if (SYNC.canWrite()) return openProfileDialog();
-    const localCount = Object.keys(store.overrides).length + store.custom.length;
+    if (!SYNC.configured) return openSetupDialog();
+    if (SYNC.signedIn()) return openProfileDialog();
     form.innerHTML = `
-      <div class="dlg-head"><div class="id">${esc(SYNC.repoLabel)}</div><h3>Вхід через GitHub</h3></div>
+      <div class="dlg-head"><div class="id">Спільна дошка</div><h3>Вхід через GitHub</h3></div>
       <div class="dlg-body">
-        <p>Після входу ваші переміщення, нотатки й нові задачі бачить уся команда, а в історії стоїть ваше ім'я з GitHub. Ім'я не вводиться вручну — його підтверджує сам GitHub.</p>
-        <div class="login-tabs" role="tablist">
-          <button type="button" class="btn active" data-who="owner">Я власник репозиторію</button>
-          <button type="button" class="btn" data-who="member">Я учасник команди</button>
-        </div>
-        <ol class="login-steps" data-for="owner">
-          <li>Відкрийте <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Fine-grained token ↗</a>.</li>
-          <li><b>Repository access:</b> Only select repositories → ${esc(SYNC.repoLabel)}.</li>
-          <li><b>Permissions → Contents:</b> Read and write. Більше нічого.</li>
-          <li>Generate token → скопіюйте і вставте нижче.</li>
-        </ol>
-        <ol class="login-steps" data-for="member" hidden>
-          <li>Попросіть власника додати вас: Settings → Collaborators → Add people, і прийміть запрошення.</li>
-          <li>Відкрийте <a href="https://github.com/settings/tokens/new?scopes=public_repo&description=Agency%20Task%20Board" target="_blank" rel="noopener">Classic token ↗</a> — потрібна галочка <code>public_repo</code> вже стоятиме.</li>
-          <li>Generate token → скопіюйте і вставте нижче.</li>
-        </ol>
-        <div class="verify-row">
-          <input id="sToken" type="password" autocomplete="off" spellcheck="false" placeholder="github_pat_… або ghp_…" aria-label="GitHub-токен">
-          <button class="btn primary" type="button" id="sVerify">${GH_ICON}<span>Верифікувати</span></button>
-        </div>
-        <div id="sWho" class="who-card" hidden></div>
-        ${localCount ? `<label class="check"><input id="sMigrate" type="checkbox" checked> Перенести мої локальні зміни (${localCount}) у спільну дошку</label>` : ""}
-        <p class="help" id="sError" style="color:var(--bad)"></p>
-        <p class="help">Токен зберігається лише в цьому браузері й надсилається тільки на api.github.com. Його можна відкликати в налаштуваннях GitHub будь-коли.</p>
+        <p>Після входу ваші переміщення, нотатки й нові задачі одразу бачить уся команда, а в журналі стоїть ваше ім'я з GitHub. Токени не потрібні — GitHub лише підтверджує, хто ви.</p>
+        <p class="help">Редагувати можуть люди зі списку редакторів. Якщо вас там немає, після входу ви побачите свій логін — передайте його власнику дошки.</p>
       </div>
-      <div class="dlg-foot"><div class="right"><button class="btn" type="button" data-close>Закрити</button></div></div>`;
-
-    $$(".login-tabs [data-who]", form).forEach((t) => t.addEventListener("click", () => {
-      $$(".login-tabs [data-who]", form).forEach((x) => x.classList.toggle("active", x === t));
-      $$(".login-steps", form).forEach((ol) => (ol.hidden = ol.dataset.for !== t.dataset.who));
-    }));
-
-    const verify = async () => {
-      const btn = $("#sVerify", form), label = $("#sVerify span", form), err = $("#sError", form), who = $("#sWho", form);
-      btn.disabled = true; label.textContent = "Перевіряю…"; err.textContent = ""; who.hidden = true;
-      try {
-        const me = await SYNC.connect($("#sToken").value);
-        who.hidden = false;
-        who.innerHTML = `${avatarImg(me.avatar, 44)}<div><b>${esc(me.name)}</b><span class="muted">@${esc(me.login)} · право запису підтверджено</span></div><span class="ok-mark">✓</span>`;
-        if ($("#sMigrate", form)?.checked) {
-          Object.entries(store.overrides).forEach(([id, patch]) => SYNC.patch(id, patch, getTask(id)));
-          store.custom.forEach((t) => SYNC.create(t));
-          store = { overrides: {}, custom: [] }; save();
-        }
-        renderLoginButton(); renderSyncButton(); render();
-        toast(`Ви увійшли як ${me.name}`);
-        setTimeout(() => dlg.open && dlg.close(), 1400);
-      } catch (e) {
-        err.textContent = e.message;
-        btn.disabled = false; label.textContent = "Верифікувати";
-      }
-    };
-    $("#sVerify", form).addEventListener("click", verify);
-    $("#sToken", form).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); verify(); } });
+      <div class="dlg-foot"><div class="right"><button class="btn" type="button" data-close>Закрити</button>
+        <button class="btn primary" type="button" id="sSignIn">${GH_ICON}<span>Увійти через GitHub</span></button></div></div>`;
+    $("#sSignIn", form).addEventListener("click", () => { $("#sSignIn span", form).textContent = "Переходжу на GitHub…"; SYNC.signIn(); });
     if (!dlg.open) dlg.showModal();
-    $("#sToken", form).focus();
   }
 
   function openProfileDialog() {
     const mine = (shared().log || []).filter((e) => e.login === SYNC.login).length;
+    const local = localChangesCount();
     form.innerHTML = `
-      <div class="dlg-head"><div class="id">${esc(SYNC.repoLabel)}</div><h3>Ваш профіль</h3></div>
+      <div class="dlg-head"><div class="id">Спільна дошка</div><h3>${SYNC.isMember ? "Ваш профіль" : "Ви увійшли як гість"}</h3></div>
       <div class="dlg-body">
-        <div class="who-card">${avatarImg(SYNC.avatar, 44)}<div><b>${esc(SYNC.name)}</b><span class="muted">@${esc(SYNC.login)} · ${mine} змін на дошці</span></div><span class="ok-mark">✓</span></div>
-        <p>Синхронізація: <b>${esc(SYNC_LABEL[SYNC.status])}</b>${SYNC.error ? ` — ${esc(SYNC.error)}` : ""}.</p>
+        <div class="who-card ${SYNC.isMember ? "" : "guest"}">${avatarImg(SYNC.avatar, 44)}<div><b>${esc(SYNC.name)}</b><span class="muted">@${esc(SYNC.login)} · ${SYNC.isMember ? `редактор · ${mine} змін` : "немає права редагувати"}</span></div><span class="ok-mark">${SYNC.isMember ? "✓" : "!"}</span></div>
+        ${SYNC.isMember
+          ? `<p>Синхронізація: <b>${esc(SYNC_LABEL[SYNC.status] || SYNC.status)}</b>${SYNC.error ? ` — ${esc(SYNC.error)}` : ""}.</p>
+             ${local ? `<button class="btn" type="button" id="sMigrate">Перенести мої локальні зміни (${local}) у спільну дошку</button>` : ""}`
+          : `<p>Щоб редагувати, власник дошки має додати ваш логін <code>${esc(SYNC.login)}</code> у таблицю <code>board_members</code> у Supabase. Доти ваші зміни зберігаються лише в цьому браузері.</p>
+             <button class="btn" type="button" id="sCopy">Скопіювати логін</button>`}
       </div>
       <div class="dlg-foot">
         <button class="btn ghost danger" type="button" id="sOff">Вийти</button>
-        <div class="right"><a class="btn" href="https://github.com/${esc(SYNC.login)}" target="_blank" rel="noopener">GitHub ↗</a><a class="btn" href="${esc(SYNC.historyUrl)}" target="_blank" rel="noopener">Історія ↗</a><button class="btn" type="button" data-close>Закрити</button></div>
+        <div class="right"><a class="btn" href="https://github.com/${esc(SYNC.login)}" target="_blank" rel="noopener">GitHub ↗</a><button class="btn" type="button" data-close>Закрити</button></div>
       </div>`;
-    $("#sOff", form).addEventListener("click", () => {
-      SYNC.disconnect(); dlg.close(); renderLoginButton(); render();
-      toast("Ви вийшли: зміни знову лише локальні");
+    $("#sOff", form).addEventListener("click", async () => {
+      await SYNC.disconnect(); dlg.close(); renderLoginButton(); render();
+      toast("Ви вийшли");
     });
+    $("#sMigrate", form)?.addEventListener("click", () => { migrateLocal(); dlg.close(); render(); toast("Локальні зміни перенесено"); });
+    $("#sCopy", form)?.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(SYNC.login); toast("Логін скопійовано"); } catch (e) { toast(SYNC.login); }
+    });
+    if (!dlg.open) dlg.showModal();
+  }
+
+  function openSetupDialog() {
+    form.innerHTML = `
+      <div class="dlg-head"><div class="id">Supabase</div><h3>Спільну дошку ще не налаштовано</h3></div>
+      <div class="dlg-body">
+        <p>Зараз дошка працює локально: зміни бачите лише ви. Щоб увімкнути спільну дошку з входом через GitHub, власнику треба один раз налаштувати Supabase (безкоштовно, ~15 хвилин):</p>
+        <ol class="login-steps">
+          <li>Створити проєкт на <a href="https://supabase.com/dashboard" target="_blank" rel="noopener">supabase.com ↗</a>.</li>
+          <li>SQL Editor → виконати <code>supabase/schema.sql</code> з репозиторію (і вписати логіни редакторів).</li>
+          <li>Authentication → Providers → GitHub: увімкнути, вставити Client ID і Secret з GitHub OAuth App.</li>
+          <li>Authentication → URL Configuration: додати адресу сайту в Site URL і Redirect URLs.</li>
+          <li>Project Settings → API: вписати Project URL і anon key у <code>data/config.js</code> і запушити.</li>
+        </ol>
+        <p class="help">Покрокова інструкція — у README репозиторію, розділ «Спільна дошка».</p>
+      </div>
+      <div class="dlg-foot"><div class="right"><button class="btn" type="button" data-close>Зрозуміло</button></div></div>`;
     if (!dlg.open) dlg.showModal();
   }
 

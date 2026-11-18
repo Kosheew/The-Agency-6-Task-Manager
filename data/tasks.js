@@ -46,7 +46,8 @@ window.PROJECT = {
     { id: "ECO", name: "Економіка" },
     { id: "UI", name: "UI / імерсія" },
     { id: "CNT", name: "Контент" },
-    { id: "ART", name: "3D / арт" }
+    { id: "ART", name: "3D / арт" },
+    { id: "AUD", name: "Звук" }
   ],
 
   types: {
@@ -365,6 +366,30 @@ window.PROJECT = {
     { id: "ART-05", title: "Оточення першої справи", epic: "ART", phase: "E", type: "content", priority: "P1", estimate: "L", status: "backlog",
       desc: "Інтер'єр за референсом gameplay_screen з Figma: мармуровий хол, колони, лампи, кейтеринг; модульний кіт (стіни, підлога, двері) + 20–30 пропсів. Наразі є лише Models/Agency (Door, DoorFrame, Test1) і Station.",
       deps: ["ART-04"] },
+
+    // ───────────── Звук (аудит аудіо 18.11.2026) ─────────────
+    { id: "AUD-01", title: "Мікшер: канали Ambience/Character і снапшоти", epic: "AUD", phase: "B", type: "tech", priority: "P1", estimate: "M", status: "backlog",
+      desc: "Зараз AudioChannel має лише Music, Sfx, UI, Voice. Додати Ambience і Character (серце, дихання, шепіт); снапшоти Explore, Tension, Combat, Dialogue, Stress, Crisis, Pause з плавними переходами.",
+      criteria: ["Нові канали в AudioChannel і мікшері", "Снапшоти перемикаються з GameFlow і ресурсів", "Гучність каналів зберігається в налаштуваннях"],
+      code: ["Core/AudioModule/Scripts/AudioChannel.cs", "Core/AudioModule/Scripts/AudioVolumeService.cs"] },
+    { id: "AUD-02", title: "Звук станів персонажа: серце, дихання, шепіт", epic: "AUD", phase: "B", type: "content", priority: "P0", estimate: "M", status: "backlog",
+      desc: "«Невидима механіка» GDD передає стан звуком: серцебиття при HP < 50%, важке дихання при виснаженні < 15%, шепіт і спотворення голосів при стресі > 70. У грі цих звуків немає.",
+      criteria: ["Шари вмикаються порогами з ResourceBalanceConfig", "Плавне наростання без різких стрибків", "Перевірено на плейтесті: гравці розпізнають стан"],
+      deps: ["AUD-01", "AG-008"] },
+    { id: "AUD-03", title: "Звук діалогів: друк тексту і пайплайн озвучки", epic: "AUD", phase: "B", type: "feature", priority: "P1", estimate: "M", status: "backlog",
+      desc: "Звук друкарської машинки під DialogueTypingEffect, дакінг музики під голос, пайплайн VO: назви VO_<NPC>_<Case>_<NNN>, прив'язка до DialogueNode.VoiceActingClip, тимчасова TTS-озвучка для плейтестів.",
+      deps: ["AUD-01"], code: ["Features/DialogueModule/Scripts/View/DialogueTypingEffect.cs"] },
+    { id: "AUD-04", title: "Амбієнт локацій: станція, хол, місто вночі", epic: "AUD", phase: "D", type: "content", priority: "P2", estimate: "M", status: "backlog",
+      desc: "Безшовні петлі амбієнту на кожну локацію + точкові джерела (лампи, вентиляція, натовп у холі). Зараз амбієнту немає взагалі.",
+      deps: ["AUD-01"] },
+    { id: "AUD-05", title: "Адаптивна музика: шар напруги для стелсу", epic: "AUD", phase: "D", type: "content", priority: "P2", estimate: "M", status: "backlog",
+      desc: "Є меню, спокій і бій, але немає Tension. Шари Explore → Tension → Combat з переходами за рівнем підозри AI і тривогою «Trespassing».",
+      deps: ["AUD-01", "AG-034"] },
+    { id: "AUD-06", title: "Бойовий звук: гвинтівка, дробовик, глушник, клац", epic: "AUD", phase: "C", type: "content", priority: "P1", estimate: "S", status: "backlog",
+      desc: "Є лише постріл пістолета. Потрібні: гвинтівка, дробовик, постріл із глушником, порожній магазин, удар ножем, димова шашка. Пак «Guns Audios» перевірити й перейменувати (bn 1, pa pew…).",
+      deps: ["AG-026"] },
+    { id: "AUD-07", title: "Аудит аудіо: ліцензії, розмір, імпорт", epic: "AUD", phase: "S", type: "tech", priority: "P2", estimate: "S", status: "backlog",
+      desc: "Ліцензії сторонніх паків (Doors Small Sound Pack, Weapons of Choice FREE, Footsteps, Guns Audios, Aegis77), скоротити пак кроків до потрібних поверхонь, налаштувати компресію імпорту (ADPCM / Vorbis Streaming)." },
 
     // ───────────── Що найбільше цінують гравці жанру ─────────────
     { id: "AG-048", title: "Fail-forward: провал відкриває гілку, а не глухий кут", epic: "DLG", phase: "B", type: "design", priority: "P0", estimate: "M", status: "backlog",

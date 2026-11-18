@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agency Sound</title>
+  <meta name="description" content="Звук проєкту The Agency 6: покриття потреб гри, каталог аудіо, саунд-гайд, ризики.">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css?v=20261118-4">
+</head>
+<body class="sound-page">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">A6</span>
+      <div>
+        <h1>The Agency 6</h1>
+        <p class="muted">Звук</p>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Розділи">
+      <a href="index.html#overview">Огляд</a>
+      <a href="index.html#board">Дошка</a>
+      <a href="index.html#list">Список</a>
+      <a href="index.html#roadmap">Роадмап</a>
+      <a href="index.html#gaps">Прогалини</a>
+      <a href="index.html#visual">Візуал</a>
+      <a href="gdd.html">GDD</a>
+      <a href="ideas.html">Розвиток</a>
+      <a href="modules.html">Модулі</a>
+      <a href="models.html">3D-моделі</a>
+      <a href="sound.html" class="active" aria-current="page">Звук</a>
+    </nav>
+  </header>
+
+  <main class="modpage">
+    <div class="view-head">
+      <h2>Звук проєкту</h2>
+      <p class="muted" id="sdMeta"></p>
+    </div>
+    <div class="kpis" id="sdKpis"></div>
+    <div class="card board-progress" data-progress="epic:AUD" data-label="Прогрес звукових задач"></div>
+
+    <section class="mods-tabs" role="tablist" aria-label="Розділ">
+      <button class="btn active" data-tab="coverage" type="button">Покриття гри</button>
+      <button class="btn" data-tab="states" type="button">Звук станів</button>
+      <button class="btn" data-tab="catalog" type="button">Каталог</button>
+      <button class="btn" data-tab="guide" type="button">Саунд-гайд</button>
+      <button class="btn" data-tab="risks" type="button">Ризики</button>
+    </section>
+
+    <section id="tab-coverage">
+      <p class="muted cov-legend"><span class="st found">є звук</span><span class="st missing">потрібно створити</span> Звірка потреб механік і GDD з назвами аудіофайлів у грі.</p>
+      <div id="sdCoverage" class="cov-grid"></div>
+    </section>
+
+    <section id="tab-states" hidden>
+      <p class="muted" style="margin:0 0 14px">«Невидима механіка» з GDD: гравець не бачить цифр — стан персонажа передається звуком. Кожен шар вмикається порогом ресурсу.</p>
+      <div class="table-wrap"><table class="guide-table">
+        <thead><tr><th>Стан</th><th>Поріг</th><th>Звук</th><th>Мікшер</th><th>Задачі</th></tr></thead>
+        <tbody>
+          <tr><td>Низьке HP</td><td>&lt; 50%</td><td>Серцебиття, що прискорюється; приглушений «тунельний» фільтр</td><td>Low-pass на SFX і Music, +серцебиття в Sfx</td><td><span class="chip" data-task="AUD-02">AUD-02</span> <span class="chip" data-task="AG-010">AG-010</span></td></tr>
+          <tr><td>Виснаження</td><td>&lt; 15%</td><td>Важке дихання, кроки повільніші й важчі</td><td>Дихання поверх кроків, −2 dB на Music</td><td><span class="chip" data-task="AUD-02">AUD-02</span></td></tr>
+          <tr><td>Високий стрес</td><td>&gt; 70</td><td>Шепіт, дзвін у вухах, спотворені голоси NPC</td><td>Снапшот Stress: хорус/pitch на Voice, шепіт у стерео</td><td><span class="chip" data-task="AUD-02">AUD-02</span> <span class="chip" data-task="AG-019">AG-019</span></td></tr>
+          <tr><td>Криза</td><td>стрес 100 + низьке HP</td><td>Усе глухне, лишається серце і шепіт</td><td>Снапшот Crisis: Music −20 dB</td><td><span class="chip" data-task="AUD-01">AUD-01</span></td></tr>
+          <tr><td>Діалог</td><td>вікно відкрите</td><td>Друк тексту, озвучка, тиха музика</td><td>Снапшот Dialogue: дакінг Music −8 dB під Voice</td><td><span class="chip" data-task="AUD-03">AUD-03</span></td></tr>
+          <tr><td>Стелс / тривога</td><td>підозра / виявлення</td><td>Напружений шар музики, сигнал «Trespassing»</td><td>Перехід Explore → Tension → Combat</td><td><span class="chip" data-task="AUD-05">AUD-05</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <section id="tab-catalog" hidden>
+      <div class="filters mods-filters">
+        <input id="aSearch" type="search" placeholder="Пошук: пак або файл…" aria-label="Пошук звуків">
+        <select id="aCat" aria-label="Категорія"></select>
+        <select id="aSort" aria-label="Сортування">
+          <option value="cat">За категоріями</option>
+          <option value="count">Найбільше файлів</option>
+          <option value="size">Найважчі</option>
+        </select>
+      </div>
+      <div id="aPacks"></div>
+    </section>
+
+    <section id="tab-guide" hidden>
+      <div class="cols">
+        <div class="card">
+          <h3>Технічні вимоги</h3>
+          <div class="table-wrap"><table class="guide-table"><tbody>
+            <tr><td>Джерела</td><td>WAV 48 kHz / 24 bit у репозиторії джерел; у Unity — імпорт з компресією.</td></tr>
+            <tr><td>Імпорт Unity</td><td>Короткі SFX: ADPCM, Decompress On Load. Музика й амбієнт: Vorbis, Streaming. Озвучка: Vorbis, Compressed In Memory.</td></tr>
+            <tr><td>Гучність</td><td>Озвучка ≈ −23 LUFS, музика ≈ −20 LUFS, піки не вище −1 dBTP. Однакова гучність варіантів одного звуку.</td></tr>
+            <tr><td>Варіативність</td><td>3–5 варіантів для частих звуків (кроки, постріли, удари) + випадковий pitch ±5%.</td></tr>
+            <tr><td>3D-звук</td><td>Ізометрична камера: слухач між камерою і гравцем; Spatial Blend 1 для світу, Logarithmic rolloff, max distance 25–35 м.</td></tr>
+            <tr><td>Шум для AI</td><td>Гучність ігрового «шуму» (NoiseModule) — окремий параметр, не прив'язаний до гучності кліпу.</td></tr>
+          </tbody></table></div>
+        </div>
+        <div class="card">
+          <h3>Мікшер і найменування</h3>
+          <ul class="rules">
+            <li>Зараз у <code>AudioChannel</code>: <span id="sdChannels"></span>. Потрібно додати <b>Ambience</b> і групу <b>Character</b> (серце, дихання, шепіт), щоб керувати ними окремо.</li>
+            <li>Снапшоти: <code>Explore</code>, <code>Tension</code>, <code>Combat</code>, <code>Dialogue</code>, <code>Stress</code>, <code>Crisis</code>, <code>Pause</code>.</li>
+            <li>Префікси: <code>SFX_</code>, <code>MUS_</code>, <code>AMB_</code>, <code>VO_</code>, <code>UI_</code>, <code>CHR_</code> (стани персонажа).</li>
+            <li>Формат: <code>SFX_Weapon_PM12_Fire_01</code>, <code>VO_Walter_Case1_014</code> — латиниця, без пробілів, номер варіанту в кінці.</li>
+            <li>Структура: <code>Audio/&lt;Тип&gt;/&lt;Група&gt;</code>; сторонні паки — у <code>ThirdParty</code> з ліцензією.</li>
+          </ul>
+          <h3 style="margin-top:16px">Стиль</h3>
+          <ul class="rules">
+            <li>Нуар 80–90-х: синтвейв і дарк-джаз для музики, живі акустичні шуми для світу.</li>
+            <li>Зброя важка й суха; глушник — глухий хлопок, а не «лазер».</li>
+            <li>Інтерфейс — механічні клацання друкарської машинки й реле, без sci-fi «бліпів».</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-risks" hidden>
+      <div id="sdRisks" class="gap-grid"></div>
+    </section>
+  </main>
+
+  <script src="data/tasks.js?v=20261118-4"></script>
+  <script src="data/audio.js?v=20261118-4"></script>
+  <script src="data/config.js?v=20261118-4"></script>
+  <script src="assets/sync.js?v=20261118-4"></script>
+  <script src="assets/sound-page.js?v=20261118-4"></script>
+  <script src="assets/board-live.js?v=20261118-4"></script>
+</body>
+</html>

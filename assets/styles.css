@@ -806,6 +806,40 @@ h1, h2, h3, h4, h5, .tabs a, .btn, .column header h3, .kpi .l, .chip, .sev, .eye
 .checklist li { position: relative; padding: 8px 10px 8px 34px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg-2); font-size: 14px; color: #cfc4ad; }
 .checklist li::before { content: ""; position: absolute; left: 11px; top: 11px; width: 12px; height: 12px; border: 1.5px solid var(--accent); border-radius: 3px; }
 
+/* ── Живий прогрес дошки (board-live.js) ──────────────── */
+.live-strip { position: relative; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+  padding: 7px 20px; background: #110d09; border-bottom: 1px solid var(--line); color: var(--muted); text-decoration: none; font-size: 12.5px; }
+.live-strip:hover { background: #17120c; }
+.live-strip .ls-label { font: 600 12px var(--display); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.live-strip .ls-bar { flex: 1 1 200px; min-width: 120px; }
+.live-strip .ls-bar .bar { height: 6px; }
+.live-strip .ls-bar .bar span { transition: width .6s cubic-bezier(.2, .7, .2, 1); }
+.live-strip .ls-num b, .live-strip .ls-item b { color: var(--text); }
+.live-strip .ls-mode { display: inline-flex; align-items: center; gap: 6px; margin-left: auto; font: 600 11px var(--display); letter-spacing: .08em; text-transform: uppercase; }
+.live-strip .ls-mode i { width: 7px; height: 7px; border-radius: 50%; background: #6b604f; }
+.live-strip.ok .ls-mode i, .live-strip.readonly .ls-mode i { background: var(--good); box-shadow: 0 0 6px var(--good); animation: dotPulse 2.4s ease-out infinite; }
+.live-strip.busy .ls-mode i { background: var(--warn); }
+.live-strip.err .ls-mode i { background: var(--bad); }
+.live-progress { display: grid; gap: 6px; }
+.live-progress .lp-head { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; }
+.live-progress .lp-label { font: 600 13px var(--display); letter-spacing: .06em; text-transform: uppercase; color: var(--accent); }
+.live-progress .lp-num { color: var(--muted); font-family: var(--mono); font-size: 12px; }
+.live-progress .lp-num b { color: var(--text); }
+.live-progress .bar span { transition: width .6s cubic-bezier(.2, .7, .2, 1); }
+.live-progress .lp-legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--muted); }
+.live-progress .lp-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 2px; margin-right: 4px; }
+.board-progress { margin: -6px 0 18px; }
+.hero-progress { position: relative; z-index: 1; max-width: 560px; margin: 0 0 18px; animation: fadeUp .6s .2s both; }
+.release .live-progress { margin: 6px 0 8px; max-width: 460px; }
+.gdd-tasks .live-progress { margin-bottom: 10px; }
+.mbody .live-progress { margin: 8px 0 10px; }
+.chip.status-todo { color: var(--p2); }
+.chip.status-review { color: #c7a46b; }
+.chip.status-backlog { color: var(--muted); }
+.who-card.guest { border-color: rgba(230, 184, 74, .5); background: rgba(230, 184, 74, .08); }
+.who-card.guest .ok-mark { color: var(--warn); }
+.btn.login.guest { border-color: var(--warn); }
+
 /* ── Responsive ───────────────────────────────────────── */
 @media (max-width: 1100px) {
   .cols { grid-template-columns: 1fr; }

@@ -1,239 +1,176 @@
-// Спільний стан дошки через GitHub.
+// Спільна дошка через Supabase.
 //
-// Стан (статуси, нотатки, виконавці, нові задачі, журнал дій) лежить у state/board.json
-// у цьому ж репозиторії. Читати може будь-хто (репозиторій публічний). Писати — той, хто
-// підключив свій GitHub-токен (fine-grained, доступ лише до цього репозиторію,
-// Contents: Read and write). Кожна зміна — окремий коміт, тож історія переміщень лишається в git.
+// Читати стан може будь-хто. Писати — лише ті, хто увійшов через GitHub і є в таблиці
+// board_members (перевіряє сама база через Row Level Security). Автора й журнал змін ставить
+// тригер у базі, тож підробити ім'я з браузера неможливо. Зміни інших приходять миттєво
+// через Supabase Realtime. Налаштування — у data/config.js, схема — supabase/schema.sql.
 //
-// Токен зберігається лише в localStorage цього браузера і надсилається тільки на api.github.com.
+// Інтерфейс (його використовують app.js і board-live.js):
+//   state {overrides, custom, log}, status, error, configured, signedIn(), isMember, canWrite(),
+//   name, login, avatar, patch(), create(), remove(), signIn(), disconnect(), start(),
+//   onChange / onStatus / onRemoteEvents + подія window "board:change".
 (() => {
   "use strict";
 
-  const P = window.PROJECT;
-  const m = /github\.com\/([^/]+)\/([^/#?]+)/.exec(P.links?.repo || "");
-  if (!m) return;
-  const OWNER = m[1], REPO = m[2].replace(/\.git$/, "");
-  const PATH = "state/board.json", BRANCH = "main";
-  const API = `https://api.github.com/repos/${OWNER}/${REPO}/contents/${PATH}`;
-  const K_TOKEN = "agency6-gh-token", K_NAME = "agency6-gh-name", K_PENDING = "agency6-sync-pending";
-  const K_LOGIN = "agency6-gh-login", K_AVATAR = "agency6-gh-avatar";
+  const CFG = window.AGENCY_CONFIG || {};
+  const SUPABASE_JS = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js";
+  const SUPABASE_SRI = "sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug";
   const LOG_LIMIT = 300;
 
-  const ls = {
-    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
-    set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { /* ігноруємо */ } }
-  };
-
-  const empty = () => ({ version: 1, overrides: {}, custom: [], log: [] });
   const S = {
-    state: empty(),
-    sha: null,
-    etag: null,
-    status: "idle",       // idle | readonly | ok | busy | err
+    state: { overrides: {}, custom: [], log: [] },
+    status: "idle",        // idle | offline | readonly | ok | busy | err
     error: "",
-    pending: [],          // операції, ще не записані в репозиторій
+    configured: !!(CFG.supabaseUrl && CFG.supabaseAnonKey),
+    isMember: false,
+    user: null,
+    client: null,
     onChange: () => {},
     onStatus: () => {},
     onRemoteEvents: () => {},
-    get token() { return ls.get(K_TOKEN); },
-    get name() { return ls.get(K_NAME) || "Анонім"; },
-    get login() { return ls.get(K_LOGIN) || ""; },
-    get avatar() { return ls.get(K_AVATAR) || ""; },
-    canWrite() { return !!this.token; }
-  };
-  try { S.pending = JSON.parse(ls.get(K_PENDING) || "[]"); } catch (e) { S.pending = []; }
-
-  // ── base64 <-> UTF-8 ──────────────────────────────────
-  const b64decode = (b64) => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\n/g, "")), (c) => c.charCodeAt(0)));
-  const b64encode = (str) => {
-    const bytes = new TextEncoder().encode(str);
-    let bin = "";
-    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
-    return btoa(bin);
+    get name() { return this.user?.name || "Анонім"; },
+    get login() { return this.user?.login || ""; },
+    get avatar() { return this.user?.avatar || ""; },
+    signedIn() { return !!this.user; },
+    canWrite() { return !!this.user && this.isMember; },
+    repoLabel: "Supabase",
+    historyUrl: null
   };
 
+  const changed = () => {
+    S.onChange();
+    window.dispatchEvent(new CustomEvent("board:change"));
+  };
   function setStatus(status, error = "") {
     S.status = status; S.error = error;
     S.onStatus(status, error);
+    window.dispatchEvent(new CustomEvent("board:status"));
   }
 
-  // ── Операції над станом ───────────────────────────────
-  function apply(state, op) {
-    const stamp = { _at: op.at, _by: op.by };
-    const logIt = (e) => state.log.unshift({ ...e, login: op.login });   // логін GitHub автора
-    if (op.type === "patch") {
-      const isCustom = state.custom.find((t) => t.id === op.id);
-      const prev = isCustom || state.overrides[op.id] || {};
-      if (op.patch.status && op.patch.status !== (prev.status || op.fromStatus)) {
-        logIt({ at: op.at, by: op.by, id: op.id, title: op.title, action: "move", from: prev.status || op.fromStatus, to: op.patch.status });
-      } else if (op.patch.notes !== undefined || op.patch.assignee !== undefined || op.patch.crit) {
-        logIt({ at: op.at, by: op.by, id: op.id, title: op.title, action: "edit" });
-      }
-      if (isCustom) Object.assign(isCustom, op.patch, stamp);
-      else state.overrides[op.id] = { ...prev, ...op.patch, ...stamp };
-    } else if (op.type === "create") {
-      if (!state.custom.find((t) => t.id === op.task.id)) {
-        state.custom.push({ ...op.task, ...stamp });
-        logIt({ at: op.at, by: op.by, id: op.task.id, title: op.task.title, action: "create" });
-      }
-    } else if (op.type === "delete") {
-      state.custom = state.custom.filter((t) => t.id !== op.id);
-      logIt({ at: op.at, by: op.by, id: op.id, title: op.title, action: "delete" });
+  // ── Рядки бази → стан дошки ───────────────────────────
+  function applyRow(row) {
+    if (!row) return;
+    if (row.is_custom) {
+      S.state.custom = S.state.custom.filter((t) => t.id !== row.id);
+      if (!row.deleted) S.state.custom.push({ ...row.data, id: row.id, _at: row.updated_at, _by: row.updated_by_name });
+    } else {
+      S.state.overrides[row.id] = { ...row.data, _at: row.updated_at, _by: row.updated_by_name };
     }
-    state.log = state.log.slice(0, LOG_LIMIT);
-    return state;
   }
+  const logEntry = (r) => ({ at: r.at, by: r.by_name || r.by_login || "Хтось", login: r.by_login, id: r.task_id, title: r.title, action: r.action, from: r.from_status, to: r.to_status });
 
-  function enqueue(op) {
-    op.at = new Date().toISOString();
-    op.by = S.name;
-    op.login = S.login;
-    S.pending.push(op);
-    ls.set(K_PENDING, JSON.stringify(S.pending));
-    apply(S.state, structuredClone(op));   // оптимістично показуємо одразу
-    S.onChange();
-    schedulePush();
-  }
-
-  S.patch = (id, patch, task) => enqueue({ type: "patch", id, patch, title: task?.title, fromStatus: task?.status });
-  S.create = (task) => enqueue({ type: "create", task });
-  S.remove = (id, task) => enqueue({ type: "delete", id, title: task?.title });
-
-  // ── Читання ───────────────────────────────────────────
-  async function fetchRemote({ conditional = false } = {}) {
-    const headers = { Accept: "application/vnd.github+json" };
-    if (S.token) headers.Authorization = `Bearer ${S.token}`;
-    if (conditional && S.etag) headers["If-None-Match"] = S.etag;   // 304 не витрачає ліміт запитів
-    const res = await fetch(`${API}?ref=${BRANCH}&t=${conditional ? "" : Date.now()}`, { headers, cache: "no-store" });
-    if (res.status === 304) return null;
-    if (res.status === 404) return { state: empty(), sha: null, etag: null };
-    if (!res.ok) throw new Error(`GitHub ${res.status}: ${(await res.json().catch(() => ({}))).message || res.statusText}`);
-    const body = await res.json();
-    let state = empty();
-    try { state = { ...empty(), ...JSON.parse(b64decode(body.content)) }; } catch (e) { /* пошкоджений файл — починаємо з порожнього */ }
-    return { state, sha: body.sha, etag: res.headers.get("ETag") };
-  }
-
-  // Повідомлення про зміни інших людей
-  function announceNew(prevLog, nextLog) {
-    const seen = new Set(prevLog.map((e) => e.at + e.id + e.action));
-    const fresh = nextLog.filter((e) => !seen.has(e.at + e.id + e.action) && e.by !== S.name);
-    if (fresh.length) S.onRemoteEvents(fresh);
-  }
-
-  S.pull = async function pull({ quiet = false } = {}) {
-    if (pushing) return;
-    try {
-      const r = await fetchRemote({ conditional: quiet });
-      if (!r) { setStatus(S.canWrite() ? "ok" : "readonly"); return; }
-      const prevLog = S.state.log || [];
-      const next = r.state;
-      S.pending.forEach((op) => apply(next, structuredClone(op)));    // зберігаємо ще не записане
-      S.state = next; S.sha = r.sha; S.etag = r.etag;
-      if (quiet) announceNew(prevLog, next.log || []);
-      S.onChange();
-      setStatus(S.pending.length ? "busy" : S.canWrite() ? "ok" : "readonly");
-      if (S.pending.length && S.canWrite()) schedulePush();
-    } catch (e) {
-      setStatus("err", e.message);
-    }
-  };
-
-  // ── Запис ─────────────────────────────────────────────
-  let pushTimer = null, pushing = false;
-  function schedulePush() {
+  // ── Оптимістичне оновлення + запис ────────────────────
+  async function write(id, patch, extra = {}) {
     if (!S.canWrite()) return;
-    clearTimeout(pushTimer);
-    pushTimer = setTimeout(push, 800);
-  }
-
-  function commitMessage(ops) {
-    const names = Object.fromEntries(P.statuses.map((s) => [s.id, s.name]));
-    const first = ops[0];
-    const what = first.type === "patch" && first.patch.status
-      ? `${first.id} → ${names[first.patch.status] || first.patch.status}`
-      : first.type === "create" ? `нова задача ${first.task.id}` : first.type === "delete" ? `видалено ${first.id}` : `оновлено ${first.id}`;
-    return `board: ${what}${ops.length > 1 ? ` (+${ops.length - 1})` : ""} — ${S.name}`;
-  }
-
-  async function push(attempt = 0) {
-    if (!S.canWrite() || !S.pending.length || pushing) return;
-    pushing = true;
     setStatus("busy");
-    const ops = S.pending.slice();
-    try {
-      const r = await fetchRemote();          // свіжий стан + sha
-      const next = r.state;
-      ops.forEach((op) => apply(next, structuredClone(op)));
-      const res = await fetch(API, {
-        method: "PUT",
-        headers: { Accept: "application/vnd.github+json", Authorization: `Bearer ${S.token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ message: commitMessage(ops), content: b64encode(JSON.stringify(next, null, 1)), branch: BRANCH, ...(r.sha ? { sha: r.sha } : {}) })
+    const { error } = await S.client.rpc("board_patch", {
+      p_id: id, p_patch: patch, p_title: extra.title ?? null, p_base_status: extra.baseStatus ?? null,
+      p_is_custom: !!extra.isCustom, p_deleted: !!extra.deleted
+    });
+    if (error) {
+      setStatus("err", /row-level security|permission/i.test(error.message)
+        ? "Немає права запису: вашого логіна немає в board_members"
+        : error.message);
+      await reload();   // повертаємо справжній стан
+      return;
+    }
+    setStatus("ok");
+  }
+
+  S.patch = (id, patch, task) => {
+    const isCustom = S.state.custom.some((t) => t.id === id);
+    if (isCustom) Object.assign(S.state.custom.find((t) => t.id === id), patch);
+    else S.state.overrides[id] = { ...(S.state.overrides[id] || {}), ...patch };
+    changed();
+    write(id, patch, { title: task?.title, baseStatus: task?._base ? baseStatus(id) : null, isCustom });
+  };
+  S.create = (task) => {
+    S.state.custom.push({ ...task });
+    changed();
+    write(task.id, task, { title: task.title, isCustom: true });
+  };
+  S.remove = (id, task) => {
+    S.state.custom = S.state.custom.filter((t) => t.id !== id);
+    changed();
+    write(id, {}, { title: task?.title, isCustom: true, deleted: true });
+  };
+  const baseStatus = (id) => (window.PROJECT?.tasks || []).find((t) => t.id === id)?.status || null;
+
+  // ── Завантаження і Realtime ───────────────────────────
+  async function reload() {
+    const [tasks, log] = await Promise.all([
+      S.client.from("board_tasks").select("*"),
+      S.client.from("board_log").select("*").order("at", { ascending: false }).limit(LOG_LIMIT)
+    ]);
+    if (tasks.error || log.error) throw new Error((tasks.error || log.error).message);
+    S.state = { overrides: {}, custom: [], log: log.data.map(logEntry) };
+    tasks.data.forEach(applyRow);
+    changed();
+  }
+
+  function subscribe() {
+    S.client.channel("board")
+      .on("postgres_changes", { event: "*", schema: "public", table: "board_tasks" }, (p) => { applyRow(p.new); changed(); })
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "board_log" }, (p) => {
+        const e = logEntry(p.new);
+        S.state.log = [e, ...S.state.log].slice(0, LOG_LIMIT);
+        if (e.login && e.login !== S.login) S.onRemoteEvents([e]);
+        changed();
+      })
+      .subscribe((st) => {
+        if (st === "SUBSCRIBED") setStatus(S.canWrite() ? "ok" : "readonly");
+        if (st === "CHANNEL_ERROR" || st === "TIMED_OUT") setStatus("err", "Немає з'єднання в реальному часі — оновлюю кожну хвилину");
       });
-      if (res.status === 409 || res.status === 422) {          // хтось записав раніше — пробуємо ще раз
-        pushing = false;
-        if (attempt < 3) return push(attempt + 1);
-        throw new Error("Конфлікт запису, спробуйте ще раз");
-      }
-      if (!res.ok) throw new Error(`GitHub ${res.status}: ${(await res.json().catch(() => ({}))).message || res.statusText}`);
-      const body = await res.json();
-      S.pending = S.pending.slice(ops.length);
-      ls.set(K_PENDING, JSON.stringify(S.pending));
-      const prevLog = S.state.log || [];
-      S.state = next; S.sha = body.content?.sha || null; S.etag = null;
-      S.pending.forEach((op) => apply(S.state, structuredClone(op)));
-      announceNew(prevLog, next.log || []);
-      S.onChange();
-      setStatus(S.pending.length ? "busy" : "ok");
+    // Запасний варіант, якщо Realtime недоступний
+    setInterval(() => { if (document.visibilityState === "visible" && S.status === "err") reload().catch(() => {}); }, 60000);
+  }
+
+  // ── Вхід через GitHub ─────────────────────────────────
+  async function loadUser(session) {
+    const u = session?.user;
+    if (!u) { S.user = null; S.isMember = false; return; }
+    const m = u.user_metadata || {};
+    S.user = { login: (m.user_name || m.preferred_username || "").toLowerCase(), name: m.full_name || m.name || m.user_name || "GitHub", avatar: m.avatar_url || "" };
+    const { data, error } = await S.client.rpc("is_member");
+    S.isMember = !error && data === true;
+  }
+
+  S.signIn = () => S.client?.auth.signInWithOAuth({
+    provider: "github",
+    options: { redirectTo: location.origin + location.pathname + location.search }
+  });
+  S.disconnect = async () => {
+    await S.client?.auth.signOut();
+    S.user = null; S.isMember = false;
+    setStatus("readonly"); changed();
+  };
+
+  function loadLibrary() {
+    return new Promise((resolve, reject) => {
+      if (window.supabase?.createClient) return resolve();
+      const s = document.createElement("script");
+      s.src = SUPABASE_JS; s.integrity = SUPABASE_SRI; s.crossOrigin = "anonymous";
+      s.onload = resolve; s.onerror = () => reject(new Error("Не вдалося завантажити бібліотеку Supabase"));
+      document.head.appendChild(s);
+    });
+  }
+
+  S.start = async () => {
+    if (!S.configured) { setStatus("offline"); return; }
+    try {
+      await loadLibrary();
+      S.client = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
+        auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" }
+      });
+      const { data } = await S.client.auth.getSession();
+      await loadUser(data.session);
+      S.client.auth.onAuthStateChange(async (_e, session) => { await loadUser(session); setStatus(S.canWrite() ? "ok" : "readonly"); changed(); });
+      await reload();
+      setStatus(S.canWrite() ? "ok" : "readonly");
+      subscribe();
     } catch (e) {
       setStatus("err", e.message);
-    } finally {
-      pushing = false;
-      if (S.pending.length && S.status !== "err") schedulePush();
     }
-  }
-
-  // ── Підключення ───────────────────────────────────────
-  // Верифікація: GitHub сам каже, кому належить токен, і чи має він право запису.
-  // Ім'я в історії береться з профілю GitHub — підписатися чужим ім'ям не вийде.
-  S.verify = async (token) => {
-    token = (token || "").trim();
-    if (!token) throw new Error("Вставте токен");
-    const headers = { Accept: "application/vnd.github+json", Authorization: `Bearer ${token}` };
-    const [userRes, repoRes] = await Promise.all([
-      fetch("https://api.github.com/user", { headers }),
-      fetch(`https://api.github.com/repos/${OWNER}/${REPO}`, { headers })
-    ]);
-    const user = await userRes.json().catch(() => ({}));
-    const repo = await repoRes.json().catch(() => ({}));
-    if (!userRes.ok) throw new Error(userRes.status === 401 ? "Недійсний або прострочений токен" : `GitHub ${userRes.status}: ${user.message || ""}`);
-    if (!repoRes.ok || !repo.permissions?.push) {
-      throw new Error(`@${user.login} не має права запису в ${OWNER}/${REPO}. Попросіть власника додати вас як collaborator, а токену дайте доступ Contents: Read and write (класичний — public_repo).`);
-    }
-    return { login: user.login, name: user.name || user.login, avatar: user.avatar_url };
-  };
-  S.connect = async (token) => {
-    const who = await S.verify(token);
-    ls.set(K_TOKEN, token.trim());
-    ls.set(K_LOGIN, who.login);
-    ls.set(K_NAME, who.name);
-    ls.set(K_AVATAR, who.avatar);
-    await S.pull();
-    schedulePush();
-    return who;
-  };
-  S.disconnect = () => {
-    [K_TOKEN, K_LOGIN, K_NAME, K_AVATAR].forEach((k) => ls.set(k, null));
-    setStatus("readonly"); S.onChange();
-  };
-  S.repoLabel = `${OWNER}/${REPO}`;
-  S.historyUrl = `https://github.com/${OWNER}/${REPO}/commits/${BRANCH}/${PATH}`;
-
-  // Опитування: частіше з токеном (ліміт 5000/год), рідше без (60/год; 304 не рахується)
-  S.start = () => {
-    S.pull();
-    setInterval(() => { if (document.visibilityState === "visible") S.pull({ quiet: true }); }, S.canWrite() ? 30000 : 90000);
-    document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") S.pull({ quiet: true }); });
   };
 
   window.BoardSync = S;

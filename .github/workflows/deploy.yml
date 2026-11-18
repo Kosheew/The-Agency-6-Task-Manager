@@ -1,13 +1,11 @@
 # Публікує статичний сайт на GitHub Pages.
 # Збірки немає: *.html, assets/ і data/ викладаються як є.
-# Коміти спільного стану дошки (state/**) сайт не перезбирають — сайт читає стан напряму через GitHub API.
+# Спільний стан дошки живе в Supabase (data/config.js), а не в репозиторії.
 name: Deploy to GitHub Pages
 
 on:
   push:
     branches: [main]
-    paths-ignore:
-      - "state/**"
   workflow_dispatch:
 
 permissions:
