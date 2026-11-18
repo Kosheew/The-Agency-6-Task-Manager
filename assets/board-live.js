@@ -119,6 +119,30 @@
     setTimeout(() => card.remove(), 15000);
   }
 
+  // ── Власнику: нові запити на доступ ───────────────────
+  const REQ_KEY = "agency6-seen-requests";
+  function notifyRequests() {
+    if (!SYNC?.isOwner || !SYNC.requests?.length) return;
+    let known;
+    try { known = new Set(JSON.parse(localStorage.getItem(REQ_KEY) || "[]")); } catch (e) { known = new Set(); }
+    const fresh = SYNC.requests.filter((r) => !known.has(r.id + ":" + r.created_at));
+    if (!fresh.length) return;
+    fresh.forEach((r) => known.add(r.id + ":" + r.created_at));
+    try { localStorage.setItem(REQ_KEY, JSON.stringify([...known].slice(-200))); } catch (e) { /* ігноруємо */ }
+    const card = document.createElement("div");
+    card.className = "assign-note";
+    card.innerHTML = `
+      <div class="an-head"><span class="an-pin">✉</span><b>${fresh.length === 1 ? "Новий запит на доступ" : `Нових запитів на доступ: ${fresh.length}`}</b>
+        <button type="button" class="an-close" aria-label="Закрити">✕</button></div>
+      <div class="an-list">${fresh.slice(0, 4).map((r) => `<span><b>${esc(r.name || "—")}</b> ${esc(r.email)}</span>`).join("")}</div>
+      <a class="an-all" href="index.html?access=1#board">Розглянути →</a>`;
+    card.querySelector(".an-close").onclick = () => card.remove();
+    notifyBox().appendChild(card);
+    setTimeout(() => card.classList.add("fade"), 29000);
+    setTimeout(() => card.remove(), 30000);
+  }
+  window.addEventListener("board:requests", notifyRequests);
+
   // ── Чипи задач ────────────────────────────────────────
   function chips(all) {
     const byId = Object.fromEntries(all.map((t) => [t.id, t]));

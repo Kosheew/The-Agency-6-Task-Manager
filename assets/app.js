@@ -220,8 +220,9 @@
     const b = $("#btnLogin");
     if (!b || !SYNC) return;
     if (SYNC.signedIn()) {
+      const reqs = SYNC.isOwner ? (SYNC.requests || []).length : 0;
       b.className = `btn login on${SYNC.isMember ? "" : " guest"}`;
-      b.innerHTML = `${avatarImg(SYNC.name)}<span>${esc(SYNC.name)}${SYNC.isMember ? "" : " · гість"}</span>`;
+      b.innerHTML = `${avatarImg(SYNC.name)}<span>${esc(SYNC.name)}${SYNC.isMember ? "" : " · гість"}</span>${reqs ? `<span class="badge" title="Запити на доступ">${reqs}</span>` : ""}`;
       b.title = SYNC.isMember ? `Увійшли як ${SYNC.login}` : `${SYNC.login} немає в списку редакторів — зміни лише локальні`;
     } else {
       b.className = "btn login";
@@ -237,39 +238,143 @@
     store = { overrides: {}, custom: [] }; save();
   }
 
-  function openSyncDialog() {
+  // Кнопка, що на час дії показує «…» і не дає натиснути двічі
+  async function busy(btn, text, fn) {
+    const old = btn.innerHTML; btn.disabled = true; btn.textContent = text;
+    try { return await fn(); } finally { btn.disabled = false; btn.innerHTML = old; }
+  }
+  const enterSubmits = (inputs, fn) => inputs.forEach((i) => i?.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); fn(); } }));
+
+  function openSyncDialog(tab = "login") {
     if (!SYNC.configured) return openSetupDialog();
     if (SYNC.signedIn()) return openProfileDialog();
+    if (!SYNC.client) { toast("Ще підключаюсь до сервера — спробуйте за секунду"); return; }
     form.innerHTML = `
-      <div class="dlg-head"><div class="id">Спільна дошка</div><h3>Вхід</h3></div>
+      <div class="dlg-head"><div class="id">Спільна дошка</div><h3>${tab === "request" ? "Запросити доступ" : "Вхід"}</h3></div>
       <div class="dlg-body">
-        <p>Введіть email — ми надішлемо посилання. Натисніть його в листі, і ви одразу увійдете. Пароль не потрібен, а браузер запам'ятає вас.</p>
-        <div class="verify-row">
-          <input id="sEmail" type="email" autocomplete="email" placeholder="you@example.com" aria-label="Email">
-          <button class="btn primary" type="button" id="sSend">${MAIL_ICON}<span>Надіслати посилання</span></button>
+        <div class="seg" role="tablist">
+          <button type="button" class="${tab === "login" ? "on" : ""}" data-tab="login">Увійти</button>
+          <button type="button" class="${tab === "request" ? "on" : ""}" data-tab="request">Запросити доступ</button>
         </div>
-        <div id="sSent" class="who-card" hidden>${MAIL_ICON.replace('width="15" height="15"', 'width="28" height="28"')}<div><b>Перевірте пошту</b><span class="muted" id="sSentTo"></span></div></div>
-        <p class="help" id="sError" style="color:var(--bad)"></p>
-        <p class="help">Лист може прийти за хвилину-дві; перевірте «Спам». Посилання можна відкрити й на телефоні.</p>
+        ${tab === "login" ? `
+          <label class="field">Email<input id="sEmail" type="email" autocomplete="username" placeholder="you@example.com"></label>
+          <label class="field">Пароль<input id="sPass" type="password" autocomplete="current-password" placeholder="пароль від власника дошки"></label>
+          <p class="help" id="sError" style="color:var(--bad)"></p>
+          <button class="btn primary wide" type="button" id="sGo">Увійти</button>
+          <p class="help">Браузер запам'ятає вхід — наступного разу дошка відкриється вже з вашим ім'ям. Немає пароля? Перейдіть у «Запросити доступ».</p>
+          <details class="help-more"><summary>Не пам'ятаю пароль</summary>
+            <p class="help">Попросіть власника дошки видати новий пароль (профіль → «Доступ» → «Новий пароль»). Або отримайте посилання для входу на email, а потім задайте пароль у профілі:</p>
+            <button class="btn" type="button" id="sLink">${MAIL_ICON}<span>Надіслати посилання на email</span></button>
+            <p class="help" id="sLinkMsg"></p>
+          </details>` : `
+          <p>Залиште заявку — власник дошки отримає сповіщення, підтвердить її і передасть вам пароль.</p>
+          <label class="field">Ваше ім'я<input id="rName" maxlength="40" autocomplete="name" placeholder="Як вас показувати в журналі"></label>
+          <label class="field">Email<input id="rEmail" type="email" autocomplete="email" placeholder="you@example.com"></label>
+          <label class="field">Коментар (необов'язково)<input id="rNote" maxlength="300" placeholder="Напр.: 3D-артист, працюю над рівнями"></label>
+          <p class="help" id="sError" style="color:var(--bad)"></p>
+          <button class="btn primary wide" type="button" id="rGo">Надіслати запит</button>
+          <div id="rDone" class="who-card" hidden>${MAIL_ICON.replace('width="15" height="15"', 'width="28" height="28"')}<div><b>Запит надіслано</b><span class="muted">Коли власник підтвердить, він передасть вам пароль. Тоді увійдіть на вкладці «Увійти».</span></div></div>`}
       </div>
       <div class="dlg-foot"><div class="right"><button class="btn" type="button" data-close>Закрити</button></div></div>`;
-    const send = async () => {
-      const btn = $("#sSend", form), label = $("#sSend span", form), err = $("#sError", form);
-      btn.disabled = true; label.textContent = "Надсилаю…"; err.textContent = "";
-      const email = $("#sEmail", form).value;
-      const problem = await SYNC.signIn(email);
-      if (problem) { err.textContent = problem; btn.disabled = false; label.textContent = "Надіслати посилання"; return; }
-      $("#sSent", form).hidden = false;
-      $("#sSentTo", form).textContent = `Посилання надіслано на ${email.trim()}`;
-      label.textContent = "Надіслати ще раз"; btn.disabled = false;
-    };
-    $("#sSend", form).addEventListener("click", send);
-    $("#sEmail", form).addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); send(); } });
+    form.querySelectorAll("[data-tab]").forEach((b) => b.addEventListener("click", () => openSyncDialog(b.dataset.tab)));
+    const err = $("#sError", form);
+    if (tab === "login") {
+      const go = () => busy($("#sGo", form), "Входжу…", async () => {
+        err.textContent = "";
+        const problem = await SYNC.signInPassword($("#sEmail", form).value, $("#sPass", form).value);
+        if (problem) { err.textContent = problem; return; }
+        dlg.close(); renderLoginButton(); render();
+        toast(SYNC.isMember ? `Вітаю, ${SYNC.name}! Зміни бачить уся команда` : "Ви увійшли, але ще не маєте права редагувати");
+      });
+      $("#sGo", form).addEventListener("click", go);
+      enterSubmits([$("#sEmail", form), $("#sPass", form)], go);
+      $("#sLink", form).addEventListener("click", (e) => busy(e.currentTarget, "Надсилаю…", async () => {
+        const problem = await SYNC.signInLink($("#sEmail", form).value);
+        $("#sLinkMsg", form).textContent = problem || "Лист надіслано — відкрийте посилання з нього (перевірте «Спам»).";
+      }));
+      $("#sEmail", form).focus();
+    } else {
+      const go = () => busy($("#rGo", form), "Надсилаю…", async () => {
+        err.textContent = "";
+        const problem = await SYNC.requestAccess($("#rEmail", form).value, $("#rName", form).value, $("#rNote", form).value);
+        if (problem) { err.textContent = problem; return; }
+        $("#rDone", form).hidden = false; $("#rGo", form).hidden = true;
+      });
+      $("#rGo", form).addEventListener("click", go);
+      enterSubmits([$("#rName", form), $("#rEmail", form), $("#rNote", form)], go);
+      $("#rName", form).focus();
+    }
     if (!dlg.open) dlg.showModal();
-    $("#sEmail", form).focus();
   }
 
-  function openProfileDialog() {
+  // ── Панель власника: запити, учасники, паролі ────────
+  function credentialsText(email, password) {
+    const url = location.origin + location.pathname;
+    return `Доступ до дошки The Agency 6\n${url}\nНатисніть «Увійти»\nEmail: ${email}\nПароль: ${password}`;
+  }
+  function showCredentials(box, email, password) {
+    const text = credentialsText(email, password);
+    box.hidden = false;
+    box.innerHTML = `<b>Доступ видано — передайте людині:</b><pre>${esc(text)}</pre>
+      <div class="row-btns"><button class="btn primary" type="button" data-copy>Копіювати</button></div>
+      <p class="help">Пароль показується лише зараз. Якщо загубиться — натисніть «Новий пароль».</p>`;
+    $("[data-copy]", box).addEventListener("click", async (e) => {
+      try { await navigator.clipboard.writeText(text); e.currentTarget.textContent = "Скопійовано ✓"; }
+      catch (x) { e.currentTarget.textContent = "Виділіть текст і скопіюйте"; }
+    });
+  }
+
+  async function renderAccessPanel(root) {
+    if (!root) return;
+    const reqs = SYNC.requests || [];
+    root.innerHTML = `
+      <h4>Запити на доступ ${reqs.length ? `<span class="badge">${reqs.length}</span>` : ""}</h4>
+      ${reqs.length ? `<ul class="req-list">${reqs.map((r) => `
+        <li data-req="${r.id}"><div><b>${esc(r.name || "—")}</b> <span class="muted">${esc(r.email)}</span>${r.note ? `<small>${esc(r.note)}</small>` : ""}<small class="muted">${timeAgo(r.created_at)}</small></div>
+          <span class="row-btns"><button class="btn primary" type="button" data-approve>Підтвердити</button><button class="btn ghost" type="button" data-reject>Відхилити</button></span></li>`).join("")}</ul>`
+        : `<p class="muted">Нових запитів немає. Коли хтось натисне «Запросити доступ», ви побачите сповіщення тут і на будь-якій сторінці сайту.</p>`}
+      <div class="cred" id="aCred" hidden></div>
+      <h4>Видати доступ вручну</h4>
+      <div class="verify-row"><input id="aEmail" type="email" placeholder="email"><input id="aName" maxlength="40" placeholder="ім'я"><button class="btn" type="button" id="aAdd">Видати</button></div>
+      <h4>Учасники</h4>
+      <ul class="req-list" id="aMembers"><li class="muted">Завантажую…</li></ul>
+      <p class="help" id="aError" style="color:var(--bad)"></p>`;
+    const cred = $("#aCred", root), aErr = $("#aError", root);
+    const fail = (e) => { aErr.textContent = e.message || String(e); };
+    root.querySelectorAll("[data-req]").forEach((li) => {
+      const r = reqs.find((x) => String(x.id) === li.dataset.req);
+      $("[data-approve]", li).addEventListener("click", (e) => busy(e.currentTarget, "…", async () => {
+        try { const pw = await SYNC.owner.grant(r.email, r.name); await renderAccessPanel(root); showCredentials($("#aCred", root), r.email, pw); } catch (x) { fail(x); }
+      }));
+      $("[data-reject]", li).addEventListener("click", (e) => busy(e.currentTarget, "…", async () => {
+        try { await SYNC.owner.reject(r.id); await renderAccessPanel(root); } catch (x) { fail(x); }
+      }));
+    });
+    $("#aAdd", root).addEventListener("click", (e) => busy(e.currentTarget, "…", async () => {
+      const email = $("#aEmail", root).value.trim().toLowerCase();
+      try { const pw = await SYNC.owner.grant(email, $("#aName", root).value); await renderAccessPanel(root); showCredentials($("#aCred", root), email, pw); } catch (x) { fail(x); }
+    }));
+    try {
+      const members = await SYNC.owner.members();
+      const ul = $("#aMembers", root);
+      if (!ul) return;
+      ul.innerHTML = members.map((m) => `
+        <li><div>${avatarImg(m.name, 22)} <b>${esc(m.name)}</b> <span class="muted">${esc(m.email)}</span>
+          <small class="muted">${m.is_owner ? "власник · " : ""}${m.last_sign_in ? `входив ${timeAgo(m.last_sign_in)}` : m.joined ? "акаунт є" : "ще не входив"}</small></div>
+          <span class="row-btns"><button class="btn" type="button" data-pass="${esc(m.email)}">Новий пароль</button>${m.is_owner ? "" : `<button class="btn ghost danger" type="button" data-remove="${esc(m.email)}">Прибрати</button>`}</span></li>`).join("");
+      ul.querySelectorAll("[data-pass]").forEach((b) => b.addEventListener("click", (e) => busy(e.currentTarget, "…", async () => {
+        const email = b.dataset.pass;
+        if (email === SYNC.login && !confirm("Задати новий пароль собі? Старий перестане працювати.")) return;
+        try { const pw = await SYNC.owner.grant(email, ""); showCredentials($("#aCred", root), email, pw); $("#aCred", root).scrollIntoView({ block: "nearest" }); } catch (x) { fail(x); }
+      })));
+      ul.querySelectorAll("[data-remove]").forEach((b) => b.addEventListener("click", (e) => {
+        if (!confirm(`Прибрати ${b.dataset.remove} з редакторів? Людина зможе лише переглядати дошку.`)) return;
+        busy(e.currentTarget, "…", async () => { try { await SYNC.owner.remove(b.dataset.remove); await renderAccessPanel(root); } catch (x) { fail(x); } });
+      }));
+    } catch (x) { fail(x); }
+  }
+
+  function openProfileDialog(section) {
     const mine = (shared().log || []).filter((e) => e.userId && e.userId === SYNC.userId).length;
     const local = localChangesCount();
     form.innerHTML = `
@@ -279,11 +384,15 @@
         <label class="field">Ім'я, яке бачать інші в журналі
           <span class="verify-row"><input id="sName" value="${esc(SYNC.name)}" maxlength="40"><button class="btn" type="button" id="sSaveName">Зберегти</button></span>
         </label>
+        <label class="field">Новий пароль
+          <span class="verify-row"><input id="sNewPass" type="password" autocomplete="new-password" minlength="8" placeholder="щонайменше 8 символів"><button class="btn" type="button" id="sSavePass">Змінити</button></span>
+        </label>
         ${SYNC.isMember
           ? `<p>Синхронізація: <b>${esc(SYNC_LABEL[SYNC.status] || SYNC.status)}</b>${SYNC.error ? ` — ${esc(SYNC.error)}` : ""}.</p>
              ${local ? `<button class="btn" type="button" id="sMigrate">Перенести мої локальні зміни (${local}) у спільну дошку</button>` : ""}`
-          : `<p>Щоб редагувати, власник дошки має додати ваш email <code>${esc(SYNC.login)}</code> у таблицю <code>board_members</code> у Supabase. Доти ваші зміни зберігаються лише в цьому браузері.</p>`}
+          : `<p>У вас ще немає права редагувати. Натисніть «Вийти» → «Запросити доступ», і власник дошки підтвердить запит.</p>`}
         <p class="help" id="sError" style="color:var(--bad)"></p>
+        ${SYNC.isOwner ? `<details class="access" id="sAccess" ${section === "access" || (SYNC.requests || []).length ? "open" : ""}><summary>Доступ (ви власник)${(SYNC.requests || []).length ? ` <span class="badge">${SYNC.requests.length}</span>` : ""}</summary><div id="sAccessBody"></div></details>` : ""}
       </div>
       <div class="dlg-foot">
         <button class="btn ghost danger" type="button" id="sOff">Вийти</button>
@@ -299,6 +408,12 @@
       toast("Ви вийшли");
     });
     $("#sMigrate", form)?.addEventListener("click", () => { migrateLocal(); dlg.close(); render(); toast("Локальні зміни перенесено"); });
+    $("#sSavePass", form).addEventListener("click", (e) => busy(e.currentTarget, "…", async () => {
+      const problem = await SYNC.setPassword($("#sNewPass", form).value);
+      if (problem) { $("#sError", form).textContent = problem; return; }
+      $("#sNewPass", form).value = ""; toast("Пароль змінено");
+    }));
+    if (SYNC.isOwner) renderAccessPanel($("#sAccessBody", form));
     if (!dlg.open) dlg.showModal();
   }
 
@@ -335,8 +450,18 @@
     const mine = $("#fMine");
     if (mine && new URLSearchParams(location.search).get("mine") === "1") mine.checked = true;
     window.addEventListener("board:change", () => { const w = $("#fMineWrap"); if (w) w.hidden = !SYNC.myMemberId; });
-    $("#btnSync").addEventListener("click", openSyncDialog);
-    $("#btnLogin")?.addEventListener("click", openSyncDialog);
+    $("#btnSync").addEventListener("click", () => openSyncDialog());
+    $("#btnLogin")?.addEventListener("click", () => openSyncDialog());
+    // Нові запити на доступ (для власника): значок на кнопці й живе оновлення відкритої панелі
+    const wantAccess = new URLSearchParams(location.search).get("access") === "1";
+    let accessOpened = false;
+    window.addEventListener("board:requests", () => {
+      renderLoginButton();
+      const body = form.querySelector("#sAccessBody");
+      if (dlg.open && body && !form.querySelector("#aCred:not([hidden])")) renderAccessPanel(body);
+      if (wantAccess && SYNC.isOwner && !accessOpened && !dlg.open) { accessOpened = true; openProfileDialog("access"); }
+    });
+    window.addEventListener("board:change", renderLoginButton);
     renderSyncButton();
     renderLoginButton();
     SYNC.start();
