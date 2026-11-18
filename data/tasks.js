@@ -17,7 +17,8 @@ window.PROJECT = {
     { id: "todo", name: "До виконання" },
     { id: "progress", name: "В роботі" },
     { id: "review", name: "Рев'ю" },
-    { id: "done", name: "Готово" }
+    { id: "done", name: "Готово" },
+    { id: "cancelled", name: "Скасовано" }
   ],
 
   phases: [

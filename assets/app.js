@@ -11,7 +11,10 @@
   const epicById = Object.fromEntries(P.epics.map((e) => [e.id, e]));
   const statusName = Object.fromEntries(P.statuses.map((s) => [s.id, s.name]));
   const PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3 };
-  const STATUS_COLORS = { backlog: "#3a4259", todo: "#60a5fa", progress: "#facc15", review: "#a78bfa", done: "#4ade80" };
+  const STATUS_COLORS = { backlog: "#3a4259", todo: "#60a5fa", progress: "#facc15", review: "#a78bfa", done: "#4ade80", cancelled: "#6b7280" };
+  // Задача «закрита», якщо виконана або скасована: вона не блокує залежні задачі
+  const isClosed = (s) => s === "done" || s === "cancelled";
+  const activeTasks = () => allTasks().filter((t) => t.status !== "cancelled");
 
   // ── Сховище ──────────────────────────────────────────
   // overrides: { [id]: { status, notes, crit: [bool] , ...полів для власних задач } }
@@ -78,13 +81,14 @@
     return allTasks().filter((t) =>
       (!q || `${t.id} ${t.title} ${t.desc}`.toLowerCase().includes(q)) &&
       (!ph || t.phase === ph) && (!ep || t.epic === ep) && (!pr || t.priority === pr) && (!ty || t.type === ty) &&
-      (!hideDone || t.status !== "done"));
+      (!hideDone || !isClosed(t.status)));
   }
   const byPriority = (a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) || a.id.localeCompare(b.id);
 
   // ── Огляд ────────────────────────────────────────────
   function renderOverview() {
-    const tasks = allTasks();
+    const tasks = activeTasks();
+    const cancelled = allTasks().length - tasks.length;
     const open = tasks.filter((t) => t.status !== "done");
     const done = tasks.length - open.length;
     const p0 = open.filter((t) => t.priority === "P0").length;
@@ -111,7 +115,7 @@
     }).join("");
 
     // Наступні кроки: відкриті P0 без незакритих залежностей
-    const isDone = (id) => getTask(id)?.status === "done";
+    const isDone = (id) => isClosed(getTask(id)?.status);
     const ready = open.filter((t) => (t.deps || []).every(isDone)).sort(byPriority).slice(0, 8);
     const legend = P.statuses.map((s) => `<span><i style="background:${STATUS_COLORS[s.id]}"></i>${esc(s.name)}</span>`).join("");
 
@@ -121,10 +125,10 @@
         <p class="muted">Оновлено ${esc(P.updated)} · <a href="${esc(P.links.gdd)}" target="_blank" rel="noopener">GDD</a> · <a href="${esc(P.links.doc)}" target="_blank" rel="noopener">Дока</a></p>
       </div>
       <div class="kpis">
-        <div class="kpi accent"><div class="v">${pct}%</div><div class="l">Готово (${done} з ${tasks.length})</div></div>
-        <div class="kpi cyan"><div class="v">${open.length}</div><div class="l">Відкритих задач</div></div>
-        <div class="kpi warn"><div class="v">${p0}</div><div class="l">Відкритих P0</div></div>
-        <div class="kpi bad"><div class="v">${gapsHigh}</div><div class="l">Критичних прогалин</div></div>
+        <div class="kpi accent"><div class="v" data-count="${pct}" data-suffix="%">${pct}%</div><div class="l">Готово (${done} з ${tasks.length})${cancelled ? ` · скасовано ${cancelled}` : ""}</div></div>
+        <div class="kpi cyan"><div class="v" data-count="${open.length}">${open.length}</div><div class="l">Відкритих задач</div></div>
+        <div class="kpi warn"><div class="v" data-count="${p0}">${p0}</div><div class="l">Відкритих P0</div></div>
+        <div class="kpi bad"><div class="v" data-count="${gapsHigh}">${gapsHigh}</div><div class="l">Критичних прогалин</div></div>
       </div>
       <div class="cols">
         <div class="card"><h3>Прогрес за фазами</h3><div class="bars">${phaseRows}</div><div class="legend">${legend}</div></div>
@@ -171,6 +175,7 @@
         const t = getTask(id);
         if (t && t.status !== col.dataset.status) {
           patchTask(id, { status: col.dataset.status });
+          lastMovedId = id;
           toast(`${id} → ${statusName[col.dataset.status]}`);
           render();
         }
@@ -188,7 +193,7 @@
         <header><span class="phase-dot" style="background:${p.color}"></span><h3>${p.id === "0" ? "" : "Фаза " + p.id + " · "}${esc(p.name)}</h3><span class="muted">${esc(p.goal)}</span></header>
         <div class="table-wrap"><table>
           <thead><tr><th>ID</th><th>Задача</th><th>Епік</th><th>Тип</th><th>Пріор.</th><th>Оцінка</th><th>Статус</th><th>Залежить від</th></tr></thead>
-          <tbody>${list.map((t) => `<tr data-open="${esc(t.id)}" class="${t.status === "done" ? "is-done" : ""}">
+          <tbody>${list.map((t) => `<tr data-open="${esc(t.id)}" class="${isClosed(t.status) ? "is-done" : ""} ${t.status === "cancelled" ? "is-cancelled" : ""}">
             <td class="idc">${esc(t.id)}</td><td class="ttl">${esc(t.title)}</td><td>${epicChip(t.epic)}</td><td>${typeChip(t.type)}</td>
             <td>${prChip(t.priority)}</td><td class="mono">${esc(t.estimate || "")}</td><td>${statusChip(t.status)}</td>
             <td class="mono muted">${esc((t.deps || []).join(", "))}</td></tr>`).join("")}</tbody>
@@ -199,7 +204,7 @@
 
   // ── Роадмап ──────────────────────────────────────────
   function renderRoadmap() {
-    const tasks = allTasks();
+    const tasks = activeTasks();
     const weeks = 13;
     const scale = Array.from({ length: weeks }, (_, i) => `<span>Т${i + 1}</span>`).join("");
     const rows = P.phases.filter((p) => p.id !== "0").map((p) => {
@@ -279,7 +284,10 @@
       </div>
       <div class="dlg-foot">
         ${t._base ? "" : `<button class="btn danger" type="button" id="dDelete">Видалити</button>`}
-        <div class="right"><button class="btn" value="cancel">Закрити</button><button class="btn primary" type="button" id="dSave">Зберегти</button></div>
+        ${t.status === "cancelled"
+          ? `<button class="btn" type="button" id="dRestore" title="Повернути в Backlog">↺ Відновити задачу</button>`
+          : `<button class="btn ghost danger" type="button" id="dCancelTask" title="Задача більше не потрібна: зникає з активних, але лишається в історії">✕ Скасувати задачу</button>`}
+        <div class="right"><button class="btn" type="button" data-close>Закрити</button><button class="btn primary" type="button" id="dSave">Зберегти</button></div>
       </div>`;
 
     $$("[data-crit]", form).forEach((cb) => cb.addEventListener("change", () => {
@@ -295,6 +303,14 @@
       toast(`${id} збережено`);
       render();
     });
+    const setStatus = (status, msg) => {
+      patchTask(id, { status, notes: $("#dNotes").value, assignee: $("#dAssignee").value.trim() });
+      dlg.close(); toast(msg); render();
+    };
+    $("#dCancelTask", form)?.addEventListener("click", () => {
+      if (confirm(`Скасувати ${id}? Задача зникне з активних, але її можна відновити.`)) setStatus("cancelled", `${id} скасовано`);
+    });
+    $("#dRestore", form)?.addEventListener("click", () => setStatus("backlog", `${id} відновлено в Backlog`));
     const del = $("#dDelete", form);
     if (del) del.addEventListener("click", () => {
       if (!confirm(`Видалити ${id}?`)) return;
@@ -328,7 +344,7 @@
           <label class="field">Залежить від (ID через кому)<input id="nDeps" placeholder="AG-005, AG-013"></label>
         </div>
       </div>
-      <div class="dlg-foot"><div class="right"><button class="btn" value="cancel">Скасувати</button><button class="btn primary" type="button" id="nCreate">Створити</button></div></div>`;
+      <div class="dlg-foot"><div class="right"><button class="btn" type="button" data-close>Скасувати</button><button class="btn primary" type="button" id="nCreate">Створити</button></div></div>`;
     $("#nCreate", form).addEventListener("click", () => {
       const title = $("#nTitle").value.trim();
       if (!title) { $("#nTitle").focus(); return; }
@@ -374,12 +390,53 @@
     const v = location.hash.slice(1);
     return VIEWS[v] ? v : "overview";
   }
+  // ── Анімації ─────────────────────────────────────────
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  let lastView = null;
+  let lastMovedId = null;
+
+  // Послідовна поява елементів: кожному задається індекс для затримки в CSS
+  const STAGGER = ".kpi, .card, .column, .tcard, .phase-group, tbody tr, .gantt-row, .phase-card, .gap, .mock, .bar-row, .next-list li";
+  function stagger(root) {
+    $$(STAGGER, root).forEach((el, i) => el.style.setProperty("--i", Math.min(i, 24)));
+  }
+  function countUp(root) {
+    if (reduceMotion) return;
+    $$("[data-count]", root).forEach((el) => {
+      const target = +el.dataset.count, suffix = el.dataset.suffix || "", t0 = performance.now(), dur = 900;
+      const step = (now) => {
+        const k = Math.min(1, (now - t0) / dur), eased = 1 - Math.pow(1 - k, 3);
+        el.textContent = Math.round(target * eased) + suffix;
+        if (k < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    });
+  }
+
   function render() {
     const v = currentView();
-    $$(".view").forEach((el) => el.classList.toggle("active", el.id === "view-" + v));
+    const viewEl = $("#view-" + v);
+    const entering = v !== lastView;
+    lastView = v;
+    $$(".view").forEach((el) => el.classList.toggle("active", el === viewEl));
     $$(".tabs a").forEach((a) => a.classList.toggle("active", a.dataset.view === v));
     $("#filters").hidden = !(v === "board" || v === "list");
     VIEWS[v]();
+
+    // Анімація входу лише при зміні розділу, а не на кожен ввід у фільтрі
+    if (entering && !reduceMotion) {
+      viewEl.classList.remove("enter");
+      void viewEl.offsetWidth; // перезапуск CSS-анімації
+      stagger(viewEl);
+      viewEl.classList.add("enter");
+      clearTimeout(render._t);
+      render._t = setTimeout(() => viewEl.classList.remove("enter"), 1400);
+      if (v === "overview") countUp(viewEl);
+    }
+    if (lastMovedId) {
+      $(`.tcard[data-id="${CSS.escape(lastMovedId)}"]`)?.classList.add("flash");
+      lastMovedId = null;
+    }
   }
 
   function init() {
@@ -388,9 +445,12 @@
     initFilters();
     window.addEventListener("hashchange", render);
     document.addEventListener("click", (e) => {
+      if (e.target.closest("[data-close]")) { dlg.close(); return; }
       const el = e.target.closest("[data-open]");
       if (el) openTask(el.dataset.open);
     });
+    // Клік по затемненому фону закриває вікно
+    dlg.addEventListener("click", (e) => { if (e.target === dlg) dlg.close(); });
     // клік на картку дошки (без перетягування)
     document.addEventListener("click", (e) => {
       const card = e.target.closest(".tcard");
