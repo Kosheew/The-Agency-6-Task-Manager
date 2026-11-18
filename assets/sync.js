@@ -1,13 +1,13 @@
 // Спільна дошка через Supabase.
 //
-// Читати стан може будь-хто. Писати — лише ті, хто увійшов через GitHub і є в таблиці
+// Читати стан може будь-хто. Писати — лише ті, хто увійшов за посиланням з email і є в таблиці
 // board_members (перевіряє сама база через Row Level Security). Автора й журнал змін ставить
-// тригер у базі, тож підробити ім'я з браузера неможливо. Зміни інших приходять миттєво
-// через Supabase Realtime. Налаштування — у data/config.js, схема — supabase/schema.sql.
+// тригер у базі. Зміни інших приходять миттєво через Supabase Realtime.
+// Налаштування — у data/config.js, схема — supabase/schema.sql.
 //
 // Інтерфейс (його використовують app.js і board-live.js):
 //   state {overrides, custom, log}, status, error, configured, signedIn(), isMember, canWrite(),
-//   name, login, avatar, patch(), create(), remove(), signIn(), disconnect(), start(),
+//   name, login (email), userId, patch(), create(), remove(), signIn(email), setName(), disconnect(), start(),
 //   onChange / onStatus / onRemoteEvents + подія window "board:change".
 (() => {
   "use strict";
@@ -29,8 +29,9 @@
     onStatus: () => {},
     onRemoteEvents: () => {},
     get name() { return this.user?.name || "Анонім"; },
-    get login() { return this.user?.login || ""; },
-    get avatar() { return this.user?.avatar || ""; },
+    get login() { return this.user?.email || ""; },      // email — бачить лише сам користувач
+    get userId() { return this.user?.id || ""; },
+    get avatar() { return ""; },
     signedIn() { return !!this.user; },
     canWrite() { return !!this.user && this.isMember; },
     repoLabel: "Supabase",
@@ -57,7 +58,7 @@
       S.state.overrides[row.id] = { ...row.data, _at: row.updated_at, _by: row.updated_by_name };
     }
   }
-  const logEntry = (r) => ({ at: r.at, by: r.by_name || r.by_login || "Хтось", login: r.by_login, id: r.task_id, title: r.title, action: r.action, from: r.from_status, to: r.to_status });
+  const logEntry = (r) => ({ at: r.at, by: r.by_name || "Хтось", userId: r.by_user, id: r.task_id, title: r.title, action: r.action, from: r.from_status, to: r.to_status });
 
   // ── Оптимістичне оновлення + запис ────────────────────
   async function write(id, patch, extra = {}) {
@@ -69,7 +70,7 @@
     });
     if (error) {
       setStatus("err", /row-level security|permission/i.test(error.message)
-        ? "Немає права запису: вашого логіна немає в board_members"
+        ? "Немає права запису: вашого email немає в списку редакторів"
         : error.message);
       await reload();   // повертаємо справжній стан
       return;
@@ -114,7 +115,7 @@
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "board_log" }, (p) => {
         const e = logEntry(p.new);
         S.state.log = [e, ...S.state.log].slice(0, LOG_LIMIT);
-        if (e.login && e.login !== S.login) S.onRemoteEvents([e]);
+        if (e.userId && e.userId !== S.userId) S.onRemoteEvents([e]);
         changed();
       })
       .subscribe((st) => {
@@ -125,20 +126,41 @@
     setInterval(() => { if (document.visibilityState === "visible" && S.status === "err") reload().catch(() => {}); }, 60000);
   }
 
-  // ── Вхід через GitHub ─────────────────────────────────
+  // ── Вхід за посиланням з email ────────────────────────
   async function loadUser(session) {
     const u = session?.user;
     if (!u) { S.user = null; S.isMember = false; return; }
-    const m = u.user_metadata || {};
-    S.user = { login: (m.user_name || m.preferred_username || "").toLowerCase(), name: m.full_name || m.name || m.user_name || "GitHub", avatar: m.avatar_url || "" };
+    const email = (u.email || "").toLowerCase();
+    S.user = { id: u.id, email, name: (u.user_metadata?.name || "").trim() || email.split("@")[0] };
     const { data, error } = await S.client.rpc("is_member");
     S.isMember = !error && data === true;
   }
 
-  S.signIn = () => S.client?.auth.signInWithOAuth({
-    provider: "github",
-    options: { redirectTo: location.origin + location.pathname + location.search }
-  });
+  // Надсилає лист з посиланням для входу. Повертає текст помилки або "".
+  S.signIn = async (email) => {
+    email = (email || "").trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return "Перевірте email";
+    const { error } = await S.client.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: location.origin + location.pathname + location.search }
+    });
+    if (!error) return "";
+    return /rate limit|too many/i.test(error.message)
+      ? "Забагато листів за короткий час — спробуйте через кілька хвилин"
+      : error.message;
+  };
+
+  // Ім'я, яке бачать інші в журналі (зберігається в профілі Supabase)
+  S.setName = async (name) => {
+    name = (name || "").trim().slice(0, 40);
+    if (!name) return "Введіть ім'я";
+    const { error } = await S.client.auth.updateUser({ data: { name } });
+    if (error) return error.message;
+    await S.client.auth.refreshSession();          // нове ім'я одразу потрапляє в токен для бази
+    S.user.name = name;
+    changed();
+    return "";
+  };
   S.disconnect = async () => {
     await S.client?.auth.signOut();
     S.user = null; S.isMember = false;
@@ -160,7 +182,8 @@
     try {
       await loadLibrary();
       S.client = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
-        auth: { persistSession: true, detectSessionInUrl: true, flowType: "pkce" }
+        // implicit: посилання з листа працює навіть якщо відкрити його в іншому браузері / на телефоні
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" }
       });
       const { data } = await S.client.auth.getSession();
       await loadUser(data.session);
@@ -169,7 +192,11 @@
       setStatus(S.canWrite() ? "ok" : "readonly");
       subscribe();
     } catch (e) {
-      setStatus("err", e.message);
+      setStatus("err", /failed to fetch|networkerror|load failed/i.test(e.message)
+        ? "Немає зв'язку з Supabase — перевірте інтернет і адресу в data/config.js"
+        : /relation .* does not exist|could not find/i.test(e.message)
+          ? "У базі немає таблиць дошки — виконайте supabase/schema.sql"
+          : e.message);
     }
   };
 

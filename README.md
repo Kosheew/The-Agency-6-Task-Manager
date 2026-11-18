@@ -34,27 +34,24 @@ python tools/gen_modules.py "D:/Git/MyProjects/Agency-6-HDRP"
 
 **Живий прогрес на всіх сторінках** — під шапкою кожної сторінки смуга прогресу гри; чипи задач (`data-task`) і блоки прогресу (`data-progress="epic:AUD"`, `phase:S`, `tasks:AG-001,AG-002`) оновлюються наживо, щойно хтось змінює дошку.
 
-## Спільна дошка (Supabase + вхід через GitHub)
+## Спільна дошка (Supabase + вхід за email)
 
-Статуси, нотатки, виконавці й нові задачі зберігаються в Supabase. Читати може будь-хто, редагувати — люди зі списку редакторів після входу через GitHub. Зміни інших з'являються миттєво (Realtime), автор і журнал ставить сама база — підробити ім'я неможливо. Токени не потрібні.
+Статуси, нотатки, виконавці й нові задачі зберігаються в Supabase. Читати може будь-хто, редагувати — люди зі списку редакторів. Вхід: ввести email → натиснути посилання в листі (без пароля, працює й на телефоні). Зміни інших з'являються миттєво (Realtime), автора й журнал ставить сама база. Email у публічних даних не зберігається — лише ім'я.
 
-### Налаштування (один раз, власник, ~15 хв)
+### Налаштування (один раз, власник, ~5 хв)
 
 1. **Проєкт.** [supabase.com/dashboard](https://supabase.com/dashboard) → New project (безкоштовний план).
-2. **База.** SQL Editor → New query → вставити [`supabase/schema.sql`](supabase/schema.sql) → у кінці файлу вписати логіни GitHub редакторів → **Run**.
-3. **GitHub OAuth App.** [github.com/settings/applications/new](https://github.com/settings/applications/new):
-   - Homepage URL: `https://kosheew.github.io/The-Agency-6-Task-Manager/`
-   - Authorization callback URL: `https://<project-ref>.supabase.co/auth/v1/callback` (точна адреса — у Supabase → Authentication → Providers → GitHub).
-   - Згенерувати Client secret.
-4. **Провайдер.** Supabase → Authentication → Providers → **GitHub** → Enable → вставити Client ID і Client secret → Save.
-5. **Адреси повернення.** Authentication → URL Configuration:
+2. **База.** SQL Editor → New query → вставити [`supabase/schema.sql`](supabase/schema.sql) → у кінці файлу замінити `owner@example.com` на email редакторів → **Run**.
+3. **Адреса сайту.** Authentication → URL Configuration:
    - Site URL: `https://kosheew.github.io/The-Agency-6-Task-Manager/`
-   - Redirect URLs: `https://kosheew.github.io/The-Agency-6-Task-Manager/**` (і `http://127.0.0.1:8765/**` для локальної перевірки).
-6. **Ключі.** Project Settings → API → скопіювати **Project URL** і **anon public** key у [`data/config.js`](data/config.js) → закомітити й запушити. anon key публічний за задумом; **service_role key сюди не вставляйте**.
+   - Redirect URLs → Add: `https://kosheew.github.io/The-Agency-6-Task-Manager/**`
+4. **Ключі.** Project Settings → API → скопіювати **Project URL** і **anon public** key у [`data/config.js`](data/config.js) → закомітити й запушити. anon key публічний за задумом; **service_role key сюди не вставляйте**.
+
+Вхід за email у Supabase увімкнений за замовчуванням — нічого додатково налаштовувати не треба. Вбудована пошта Supabase надсилає кілька листів на годину; для невеликої команди цього досить, бо вхід запам'ятовується.
 
 ### Редактори
 
-Додати людину — Supabase → Table Editor → `board_members` → Insert row → `github_login`. Людина без доступу після входу бачить статус «гість» і свій логін, щоб передати його власнику.
+Додати людину — Supabase → Table Editor → `board_members` → Insert row → `email`. Людина без доступу після входу бачить статус «гість» і свій email, щоб передати його власнику. Ім'я для журналу кожен задає сам у профілі.
 
 Поки `data/config.js` порожній, дошка працює локально (зміни видно лише у вашому браузері).
 

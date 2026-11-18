@@ -836,6 +836,9 @@ h1, h2, h3, h4, h5, .tabs a, .btn, .column header h3, .kpi .l, .chip, .sev, .eye
 .chip.status-todo { color: var(--p2); }
 .chip.status-review { color: #c7a46b; }
 .chip.status-backlog { color: var(--muted); }
+.avatar.initials { display: inline-grid; place-items: center; flex: none; border-radius: 50%; font-family: var(--display); font-weight: 700; letter-spacing: .02em;
+  color: #14100b; background: hsl(var(--h, 36) 55% 62%); border: 1px solid rgba(255, 255, 255, .25); }
+.field .verify-row { margin-top: 4px; }
 .who-card.guest { border-color: rgba(230, 184, 74, .5); background: rgba(230, 184, 74, .08); }
 .who-card.guest .ok-mark { color: var(--warn); }
 .btn.login.guest { border-color: var(--warn); }

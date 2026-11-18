@@ -1,13 +1,13 @@
--- Спільна дошка The Agency 6 у Supabase.
+-- Спільна дошка The Agency 6 у Supabase. Вхід — посилання на email (magic link).
 -- Запустіть цей файл один раз: Supabase → SQL Editor → New query → вставити → Run.
--- Повторний запуск безпечний (create ... if not exists / or replace).
+-- Повторний запуск безпечний. Перед запуском впишіть email редакторів у самому кінці файлу.
 
 -- ── Таблиці ──────────────────────────────────────────────────────────────
 
--- Хто може редагувати дошку (логіни GitHub, у нижньому регістрі не обов'язково)
+-- Хто може редагувати дошку
 create table if not exists public.board_members (
-  github_login text primary key,
-  added_at     timestamptz not null default now()
+  email    text primary key,
+  added_at timestamptz not null default now()
 );
 
 -- Стан задач: для базових задач (data/tasks.js) — лише змінені поля,
@@ -20,7 +20,7 @@ create table if not exists public.board_tasks (
   is_custom        boolean     not null default false,
   deleted          boolean     not null default false,
   updated_at       timestamptz not null default now(),
-  updated_by_login text,
+  updated_by       uuid,
   updated_by_name  text
 );
 
@@ -33,29 +33,27 @@ create table if not exists public.board_log (
   action      text not null,          -- move | edit | create | delete
   from_status text,
   to_status   text,
-  by_login    text,
+  by_user     uuid,
   by_name     text
 );
 create index if not exists board_log_at_idx on public.board_log (at desc);
 
--- ── Хто зараз увійшов (з профілю GitHub у JWT) ───────────────────────────
+-- ── Хто зараз увійшов ────────────────────────────────────────────────────
 
-create or replace function public.gh_login() returns text
+create or replace function public.me_email() returns text
 language sql stable as $$
-  select lower(coalesce(auth.jwt() -> 'user_metadata' ->> 'user_name',
-                        auth.jwt() -> 'user_metadata' ->> 'preferred_username'))
+  select lower(auth.jwt() ->> 'email')
 $$;
 
-create or replace function public.gh_name() returns text
+-- Ім'я з профілю (людина вводить його на сайті), інакше — частина email до «@»
+create or replace function public.me_name() returns text
 language sql stable as $$
-  select coalesce(auth.jwt() -> 'user_metadata' ->> 'full_name',
-                  auth.jwt() -> 'user_metadata' ->> 'name',
-                  public.gh_login())
+  select coalesce(nullif(auth.jwt() -> 'user_metadata' ->> 'name', ''), split_part(public.me_email(), '@', 1))
 $$;
 
 create or replace function public.is_member() returns boolean
 language sql stable security definer set search_path = public as $$
-  select exists (select 1 from public.board_members where lower(github_login) = public.gh_login())
+  select exists (select 1 from public.board_members where lower(email) = public.me_email())
 $$;
 
 -- ── Автор і журнал ставить база ──────────────────────────────────────────
@@ -68,8 +66,8 @@ declare
   act        text;
 begin
   new.updated_at       := now();
-  new.updated_by_login := public.gh_login();
-  new.updated_by_name  := public.gh_name();
+  new.updated_by       := auth.uid();
+  new.updated_by_name  := public.me_name();
 
   if tg_op = 'INSERT' and new.is_custom then
     act := 'create';
@@ -81,11 +79,11 @@ begin
     act := 'edit';
   end if;
 
-  insert into public.board_log (task_id, title, action, from_status, to_status, by_login, by_name)
+  insert into public.board_log (task_id, title, action, from_status, to_status, by_user, by_name)
   values (new.id, coalesce(new.title, new.data ->> 'title'), act,
           case when act = 'move' then old_status end,
           case when act = 'move' then new_status end,
-          new.updated_by_login, new.updated_by_name);
+          new.updated_by, new.updated_by_name);
   return new;
 end $$;
 
@@ -129,10 +127,12 @@ create policy "members update tasks" on public.board_tasks for update to authent
 
 drop policy if exists "board log is public" on public.board_log;
 create policy "board log is public" on public.board_log for select using (true);
--- вставки в журнал — лише через тригер (security definer), політики insert немає
+-- вставки в журнал — лише через тригер (security definer), політики insert немає.
+-- Журнал і задачі публічні, тому email у них не зберігається — лише ім'я та внутрішній id.
 
-drop policy if exists "members list for signed in" on public.board_members;
-create policy "members list for signed in" on public.board_members for select to authenticated using (true);
+-- Список редакторів бачать лише редактори
+drop policy if exists "members see members" on public.board_members;
+create policy "members see members" on public.board_members for select to authenticated using (public.is_member());
 
 -- ── Оновлення в реальному часі ───────────────────────────────────────────
 
@@ -143,8 +143,8 @@ begin
 end $$;
 
 -- ── Редактори дошки ──────────────────────────────────────────────────────
--- Додайте логіни GitHub усіх, хто має змінювати дошку:
-insert into public.board_members (github_login) values
-  ('kosheew')
-  -- , ('your-github-login')
+-- Впишіть email усіх, хто має змінювати дошку (той самий, яким вони входитимуть):
+insert into public.board_members (email) values
+  ('owner@example.com')
+  -- , ('teammate@example.com')
 on conflict do nothing;
