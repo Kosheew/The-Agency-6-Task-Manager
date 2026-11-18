@@ -465,6 +465,10 @@
       save(); render(); toast("Локальні зміни скинуто");
     });
     render();
+
+    // Посилання виду index.html?task=AG-006 (наприклад, зі сторінки GDD) відкривають картку задачі
+    const linked = new URLSearchParams(location.search).get("task");
+    if (linked && getTask(linked)) openTask(linked);
   }
 
   init();
