@@ -7,7 +7,8 @@
   <meta name="description" content="Менеджер задач проєкту The Agency 6: дошка, роадмап, прогалини, візуальні макети.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
   <link rel="stylesheet" href="assets/styles.css">
 </head>
 <body>
@@ -27,8 +28,11 @@
       <a href="#gaps" data-view="gaps">Прогалини</a>
       <a href="#visual" data-view="visual">Візуал</a>
       <a href="gdd.html">GDD</a>
+      <a href="ideas.html">Розвиток</a>
+      <a href="modules.html">Модулі</a>
     </nav>
     <div class="actions">
+      <button class="sync idle" id="btnSync" type="button"><span class="led"></span>Підключення…</button>
       <button class="btn primary" id="btnNew" type="button">+ Задача</button>
       <button class="btn" id="btnExport" type="button" title="Завантажити всі задачі як JSON">Експорт</button>
       <label class="btn" title="Завантажити JSON, експортований раніше">Імпорт<input id="fileImport" type="file" accept="application/json" hidden></label>
@@ -187,6 +191,7 @@
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
   <script src="data/tasks.js"></script>
+  <script src="assets/sync.js"></script>
   <script src="assets/app.js"></script>
 </body>
 </html>

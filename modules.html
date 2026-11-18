@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agency Modules</title>
+  <meta name="description" content="Документація модулів проєкту The Agency 6: шари, залежності, інтерфейси, задачі.">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="modules-page">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">A6</span>
+      <div>
+        <h1>The Agency 6</h1>
+        <p class="muted">Модулі проєкту</p>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Розділи">
+      <a href="index.html#overview">Огляд</a>
+      <a href="index.html#board">Дошка</a>
+      <a href="index.html#list">Список</a>
+      <a href="index.html#roadmap">Роадмап</a>
+      <a href="index.html#gaps">Прогалини</a>
+      <a href="index.html#visual">Візуал</a>
+      <a href="gdd.html">GDD</a>
+      <a href="ideas.html">Розвиток</a>
+      <a href="modules.html" class="active" aria-current="page">Модулі</a>
+    </nav>
+  </header>
+
+  <main class="modpage">
+    <div class="view-head">
+      <h2>Модулі проєкту</h2>
+      <p class="muted" id="modsMeta"></p>
+    </div>
+
+    <div class="kpis" id="modsKpis"></div>
+
+    <section class="mods-tabs" role="tablist" aria-label="Режим">
+      <button class="btn active" data-tab="catalog" role="tab" type="button">Каталог</button>
+      <button class="btn" data-tab="rules" role="tab" type="button">Правила і шаблон</button>
+    </section>
+
+    <section id="tab-catalog">
+      <div class="filters mods-filters">
+        <input id="mSearch" type="search" placeholder="Пошук: модуль, інтерфейс, неймспейс…" aria-label="Пошук модулів">
+        <select id="mLayer" aria-label="Шар">
+          <option value="">Усі шари</option><option value="Core">Core</option><option value="Features">Features</option>
+        </select>
+        <select id="mSort" aria-label="Сортування">
+          <option value="group">За групами</option>
+          <option value="usedBy">Найбільше використовуються</option>
+          <option value="deps">Найбільше залежностей</option>
+          <option value="files">Найбільше файлів</option>
+        </select>
+        <label class="check"><input id="mIssues" type="checkbox"> Лише з проблемами</label>
+      </div>
+      <div id="modsList"></div>
+    </section>
+
+    <section id="tab-rules" hidden>
+      <div class="cols">
+        <div class="card">
+          <h3>Правила структури (з README)</h3>
+          <ul class="rules">
+            <li><b>Core</b> — портативні модулі без залежностей від домену гри (Save, Pool, Input, FSM). Їх можна перенести в інший проєкт без змін.</li>
+            <li><b>Global</b> — інфраструктура цієї гри, спільна для всього проєкту.</li>
+            <li><b>Features</b> — вертикальні зрізи функціональності (ItemSystem, EntitySystem, WeaponSystem…).</li>
+            <li>Тека <code>*System</code> групує підмодулі; у коді суфікс <code>System</code> не вживається. Корінь неймспейсу — <code>*Module</code> (<code>PlayerSystem</code> → <code>PlayerModule</code>).</li>
+            <li>Підмодуль оголошує <code>ParentModule.SubName</code> (<code>PlayerSystem/Stats</code> → <code>PlayerModule.Stats</code>).</li>
+            <li>Компонент, потрібний одному підмодулю, лежить усередині нього, а не в спільній теці.</li>
+            <li>Сервіси й реєстри — instance-класи за інтерфейсом через Zenject, не <code>static</code>.</li>
+            <li>Model–Component: дані окремо від MonoBehaviour.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>Що перевіряє ця сторінка</h3>
+          <ul class="rules">
+            <li><span class="chip bug">Core → Features</span> модуль Core використовує неймспейс модуля гри — порушення правила портативності.</li>
+            <li><span class="chip p1">Без опису</span> модуль не має короткого опису в генераторі.</li>
+            <li><span class="chip p2">Без інтерфейсів</span> у модулі є код, але немає публічних інтерфейсів для DI.</li>
+            <li><span class="chip">Хаб</span> модулем користуються 8+ інших — зміни в ньому ризиковані.</li>
+          </ul>
+          <p class="muted" style="margin:12px 0 0;font-size:13px">Оновити дані: <code>python tools/gen_modules.py "D:/Git/MyProjects/Agency-6-HDRP"</code></p>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <div class="tpl-head"><h3>Шаблон документа модуля (README.md у теці модуля)</h3>
+          <button class="btn primary" id="copyTpl" type="button">Скопіювати</button></div>
+        <pre class="tpl" id="tpl"># &lt;НазваModule&gt;
+
+**Шар:** Core | Global | Features · **Неймспейс:** `ParentModule.SubName`
+**Власник:** &lt;ім'я&gt; · **Статус:** стабільний | у розробці | експериментальний
+
+## Призначення
+Одне-два речення: яку проблему гри вирішує модуль і чого він НЕ робить.
+
+## Публічний API
+| Тип | Роль |
+| --- | --- |
+| `IFooService` | що робить, хто викликає |
+| `FooConfiguration` (SO) | які параметри налаштовує дизайнер |
+
+## Підключення
+- Інсталер: `FooInstaller` — у якому контексті (Project / Scene) і чому.
+- Префаби / Register-компоненти, які треба поставити на сцену.
+
+## Залежності
+- Використовує: `SaveModule`, `GameEventModule` …
+- Ним користуються: …
+- Події (GameEventChannel), які модуль слухає і піднімає.
+
+## Збереження
+Ключ `SaveKeys.Foo`, формат DTO, версія, що відбувається при пошкодженому файлі.
+
+## Життєвий цикл
+Коли створюється, коли знищується, що відбувається при перезавантаженні сцени.
+
+## Відомі обмеження і задачі
+- BUG-xx / AG-xxx — коротко.
+
+## Як тестувати
+EditMode-тести: `Tests/FooTests.cs`; ручна перевірка — кроки.</pre>
+      </div>
+    </section>
+  </main>
+
+  <script src="data/modules.js"></script>
+  <script src="data/tasks.js"></script>
+  <script src="assets/modules.js"></script>
+</body>
+</html>

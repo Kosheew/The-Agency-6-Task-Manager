@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Agency Roadmap Ideas</title>
+  <meta name="description" content="Ключові питання, рішення, нові фічі, DLC, кастомізація і розширення проєкту The Agency 6.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+  <link rel="stylesheet" href="assets/styles.css">
+</head>
+<body class="ideas-page">
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark" aria-hidden="true">A6</span>
+      <div>
+        <h1>The Agency 6</h1>
+        <p class="muted">Розвиток проєкту</p>
+      </div>
+    </div>
+    <nav class="tabs" aria-label="Розділи">
+      <a href="index.html#overview">Огляд</a>
+      <a href="index.html#board">Дошка</a>
+      <a href="index.html#list">Список</a>
+      <a href="index.html#roadmap">Роадмап</a>
+      <a href="index.html#gaps">Прогалини</a>
+      <a href="index.html#visual">Візуал</a>
+      <a href="gdd.html">GDD</a>
+      <a href="ideas.html" class="active" aria-current="page">Розвиток</a>
+      <a href="modules.html">Модулі</a>
+    </nav>
+  </header>
+
+  <main class="ideas">
+    <section class="ideas-hero">
+      <p class="eyebrow">Стратегія · оновлено 18.11.2026</p>
+      <h2>Куди рухати Agency далі</h2>
+      <p class="lead">Спершу стабільна гра й один вертикальний зріз, потім глибина систем, і лише після релізу — DLC та моди. Нижче рішення, які треба ухвалити, ідеї з оцінкою зусиль і план розширення.</p>
+      <nav class="ideas-nav" aria-label="Розділи сторінки">
+        <a href="#questions">Ключові питання</a>
+        <a href="#principles">Важливі моменти</a>
+        <a href="#features">Нові фічі</a>
+        <a href="#dlc">DLC</a>
+        <a href="#custom">Кастомізація</a>
+        <a href="#expand">Розширення</a>
+        <a href="#release">Шлях до релізу</a>
+      </nav>
+    </section>
+
+    <!-- ── Ключові питання ───────────────────────────── -->
+    <section id="questions" class="ideas-block">
+      <header class="block-head">
+        <span class="num">01</span>
+        <div><h3>Ключові питання і способи рішення</h3>
+        <p class="muted">Рішення, без яких команда не може рухатись. Для кожного — варіанти і рекомендація (зелена позначка).</p></div>
+      </header>
+
+      <div class="q-grid">
+        <article class="q-card">
+          <div class="q-top"><span class="chip p0">Блокує діалоги</span><span class="chip">AG-047</span></div>
+          <h4>Звідки береться успіх репліки?</h4>
+          <ul class="opts">
+            <li><b>Детерміновані пороги.</b> Доступно, якщо є доказ / предмет / потрібний рівень ресурсу. Прозоро, без сейвскаму, але передбачувано.</li>
+            <li><b>RNG як у Disco (2d6 + навик).</b> Яскраві провали, але потрібна RPG-система і з'являється сейвскам.</li>
+            <li class="rec"><b>Гібрид.</b> Основа — пороги; рідкі «ризиковані» репліки з показаним шансом, де провал відкриває нову сцену.</li>
+          </ul>
+          <p class="why">Чому: так ви отримуєте емоцію провалу без випадковості в критичних місцях. Почати з порогів у зрізі.</p>
+        </article>
+
+        <article class="q-card">
+          <div class="q-top"><span class="chip p1">UX</span><span class="chip">AG-011</span></div>
+          <h4>Показувати ресурси чи ховати?</h4>
+          <ul class="opts">
+            <li><b>Повністю приховати.</b> Максимальна імерсія, але новачки не розуміють, що відбувається.</li>
+            <li class="rec"><b>Ефекти в грі + числа в досьє/паузі.</b> Імерсія лишається, а уважний гравець може перевірити стан.</li>
+            <li><b>Опція складності.</b> Додати пізніше як «Режим детектива» для тих, хто хоче повну невидимість.</li>
+          </ul>
+          <p class="why">Чому: «невидима механіка» працює, лише якщо ефекти впізнавані з першого разу. Перевірити на плейтесті.</p>
+        </article>
+
+        <article class="q-card">
+          <div class="q-top"><span class="chip p1">Розслідування</span><span class="chip">AG-049</span></div>
+          <h4>Інструменти — будь-коли чи в точках?</h4>
+          <ul class="opts">
+            <li><b>Тільки в точках (Condemned).</b> Простий дизайн рівнів, але гравця ведуть за руку.</li>
+            <li class="rec"><b>Будь-коли + відгук біля доказів.</b> Гравець сам вирішує, де шукати; ліхтар «оживає» поруч із Revealable. Так уже працює код.</li>
+          </ul>
+          <p class="why">Чому: уникаємо «пошуку пікселів» — головної скарги в детективах — і не відбираємо в гравця відчуття відкриття.</p>
+        </article>
+
+        <article class="q-card">
+          <div class="q-top"><span class="chip p0">Надійність</span><span class="chip">BUG-04</span></div>
+          <h4>Як зберігається гра?</h4>
+          <ul class="opts">
+            <li><b>Тільки ручні сейви.</b> Гравець втрачає прогрес після краху.</li>
+            <li class="rec"><b>Автосейв на вході в локацію + ручні в хабі.</b> Захищає від втрат і не дає сейвскамити дилеми.</li>
+            <li><b>Ironman.</b> Один слот, автосейв після кожного рішення — як окремий режим.</li>
+          </ul>
+          <p class="why">Чому: «ціна рішень» знецінюється, якщо будь-який вибір можна переграти за секунду.</p>
+        </article>
+
+        <article class="q-card">
+          <div class="q-top"><span class="chip p1">Світ</span><span class="chip">AG-039</span></div>
+          <h4>Наскільки складна репутація?</h4>
+          <ul class="opts">
+            <li><b>Тільки фракції.</b> Багато умов у кожному діалозі.</li>
+            <li class="rec"><b>Карма + 2 фракції у зрізі.</b> Третю фракцію додавати лише якщо перші дві помітні в грі.</li>
+            <li><b>Лише карма.</b> Просто, але світ реагує одноманітно.</li>
+          </ul>
+          <p class="why">Чому: кожна фракція множить умови в діалогах; репутація має бути помітна в реакціях, а не в цифрах.</p>
+        </article>
+
+        <article class="q-card">
+          <div class="q-top"><span class="chip p2">Контент</span><span class="chip">AG-045</span></div>
+          <h4>Скільки гілок у сюжеті?</h4>
+          <ul class="opts">
+            <li><b>Повні окремі гілки.</b> Виглядає круто, але обсяг тексту росте в рази.</li>
+            <li class="rec"><b>Розходяться на 1–2 сцени й сходяться.</b> Наслідки живуть у репутації, доказах і репліках, а не в нових рівнях.</li>
+          </ul>
+          <p class="why">Чому: одна дилема на справу з 3 підходами + нейтральним дає відчуття вибору без вибуху контенту.</p>
+        </article>
+
+        <article class="q-card">
+          <div class="q-top"><span class="chip p2">Доступ</span><span class="chip">AG-036</span></div>
+          <h4>Яка мінігра зламу?</h4>
+          <ul class="opts">
+            <li class="rec"><b>Одна механічна мінігра у зрізі.</b> Проста послідовність як у Chaos Theory, 3–10 с, з шумом і стресом.</li>
+            <li><b>Електронний злам.</b> Додати після зрізу на основі ассету Keypad.</li>
+            <li><b>Без мінігри.</b> Утримання кнопки — дешево, але нудно.</li>
+          </ul>
+          <p class="why">Чому: злам не є стовпом гри — достатньо однієї якісної механіки.</p>
+        </article>
+
+        <article class="q-card">
+          <div class="q-top"><span class="chip p3">Скоуп</span></div>
+          <h4>Чи потрібен ремонт предметів?</h4>
+          <ul class="opts">
+            <li><b>Повний ремонт усього.</b> Рутина, яка не підтримує стовпи гри.</li>
+            <li class="rec"><b>Тільки зброя на верстаку в хабі.</b> Міцність зброї має сенс як ресурс; інструменти — витратні.</li>
+            <li><b>Прибрати.</b> Тоді міцність теж варто прибрати.</li>
+          </ul>
+          <p class="why">Чому: менше систем — більше часу на діалоги й розслідування.</p>
+        </article>
+      </div>
+    </section>
+
+    <!-- ── Важливі моменти ───────────────────────────── -->
+    <section id="principles" class="ideas-block">
+      <header class="block-head">
+        <span class="num">02</span>
+        <div><h3>Важливі моменти</h3>
+        <p class="muted">Правила, які захищають гру від найчастіших провалів інді-проєктів.</p></div>
+      </header>
+      <ol class="principles">
+        <li><b>Стабільність перед контентом.</b> Жодної нової фічі, поки діалог можна зламати, а сейв — втратити (фаза S).</li>
+        <li><b>Кожен бар'єр має обхід.</b> Провал відкриває нову сцену, а не глухий кут (AG-048).</li>
+        <li><b>Вертикальний зріз до всього іншого.</b> Одна справа на 30–45 хв, яку проходить кожен психотип, важливіша за десять систем.</li>
+        <li><b>Жоден психотип не домінує.</b> Відмінність — у способі пройти сцену, а не в цифрах урону.</li>
+        <li><b>Дані — в ScriptableObject.</b> Справи, діалоги, предмети, модулі описуються даними: це база для балансу, локалізації й модів.</li>
+        <li><b>Локалізація з першого дня.</b> Жодних рядків у коді; таблиці Unity Localization для UA / EN.</li>
+        <li><b>Тести на формули й збереження.</b> Ціну рішень і сейви перевіряють автотести, а не гравці.</li>
+        <li><b>Плейтест кожні 2 тижні.</b> 3–5 людей без підказок; записуємо, де застрягли (AG-050).</li>
+      </ol>
+    </section>
+
+    <!-- ── Нові фічі ─────────────────────────────────── -->
+    <section id="features" class="ideas-block">
+      <header class="block-head">
+        <span class="num">03</span>
+        <div><h3>Нові фічі: користь проти зусиль</h3>
+        <p class="muted">Що додати після вертикального зрізу. Позиція на матриці — експертна оцінка; уточнюється після плейтестів.</p></div>
+      </header>
+
+      <div class="matrix" role="img" aria-label="Матриця користі та зусиль для нових фіч">
+        <div class="axis-y">Користь для гравця ↑</div>
+        <div class="axis-x">Зусилля →</div>
+        <div class="quad q-win"><h5>Швидкі перемоги</h5>
+          <span class="feat">Внутрішні голоси психотипу</span>
+          <span class="feat">Журнал агента з автозаписами</span>
+          <span class="feat">Режим Ironman</span>
+          <span class="feat">Режим фото доказів</span>
+        </div>
+        <div class="quad q-bet"><h5>Великі ставки</h5>
+          <span class="feat hot">Дошка розслідування</span>
+          <span class="feat hot">Кабінет думок</span>
+          <span class="feat">Допит зі стресом NPC</span>
+          <span class="feat">Напарник-компаньйон</span>
+        </div>
+        <div class="quad q-fill"><h5>Доповнення</h5>
+          <span class="feat">CRT/VHS-фільтри</span>
+          <span class="feat">Скіни зброї</span>
+          <span class="feat">Колекційні предмети-спогади</span>
+        </div>
+        <div class="quad q-later"><h5>Пізніше або ніколи</h5>
+          <span class="feat">День/ніч з розкладом NPC</span>
+          <span class="feat">Відкритий світ</span>
+          <span class="feat">Мультиплеєр</span>
+        </div>
+      </div>
+
+      <div class="feat-grid">
+        <article class="feat-card"><span class="tag hot">Топ-рекомендація</span><h4>Дошка розслідування</h4>
+          <p>Коркова дошка, де гравець сам з'єднує докази нитками й робить висновки. Неправильний висновок має наслідки в діалозі. Це те, що в детективах цінують найбільше: дедукцію робить гравець, а не гра.</p>
+          <p class="meta">Зусилля: M · Спирається на: EvidenceModule, досьє NPC</p></article>
+        <article class="feat-card"><span class="tag hot">Топ-рекомендація</span><h4>Кабінет думок</h4>
+          <p>Ідеї, що відкриваються з діалогів і доказів. «Обдумування» займає час і дає бонус або ваду до ресурсів чи реплік. Природно продовжує психотипи.</p>
+          <p class="meta">Зусилля: M–L · Спирається на: PsychotypeService, ресурси</p></article>
+        <article class="feat-card"><span class="tag">Швидка перемога</span><h4>Внутрішні голоси психотипу</h4>
+          <p>Короткі коментарі психотипу в діалогах і світі, як навички в Disco Elysium. Додає характер без нових механік — лише текст і умови.</p>
+          <p class="meta">Зусилля: S · Спирається на: DialogueOption, PersonalityType</p></article>
+        <article class="feat-card"><span class="tag">Велика ставка</span><h4>Допит зі стресом NPC</h4>
+          <p>NPC має власний стрес: тиск, докази, стимулятори змінюють його відповіді. Тактичний допит замість лінійного діалогу.</p>
+          <p class="meta">Зусилля: L · Ризик: обсяг тексту — лише для ключових допитів</p></article>
+        <article class="feat-card"><span class="tag">Швидка перемога</span><h4>Журнал агента</h4>
+          <p>Автозаписи від першої особи про події справи. Допомагає повернутися в гру після паузи і підсилює наратив.</p>
+          <p class="meta">Зусилля: S · Спирається на: квести, докази, GameEventChannel</p></article>
+        <article class="feat-card"><span class="tag">Велика ставка</span><h4>Напарник-компаньйон</h4>
+          <p>Колега з Агентства з власним психотипом, що коментує вибори й може не погодитись. Потужно для історії, але дорого.</p>
+          <p class="meta">Зусилля: L · Краще як основа DLC</p></article>
+      </div>
+    </section>
+
+    <!-- ── DLC ───────────────────────────────────────── -->
+    <section id="dlc" class="ideas-block">
+      <header class="block-head">
+        <span class="num">04</span>
+        <div><h3>Ідеї DLC</h3>
+        <p class="muted">Кожне DLC використовує вже наявні системи й додає одну нову механіку — так дешевше і цілісніше.</p></div>
+      </header>
+      <div class="dlc-grid">
+        <article class="dlc-card"><div class="dlc-art a1"><span>Справа №2</span></div>
+          <h4>«Підземка»</h4>
+          <p>Розслідування в закинутому метро. Нова механіка — темрява: ліхтар як ресурс, звук як головне джерело інформації. Нова фракція контрабандистів.</p>
+          <p class="meta">Нова механіка: світло/темрява · Обсяг: 3–4 год</p></article>
+        <article class="dlc-card"><div class="dlc-art a2"><span>Новий герой</span></div>
+          <h4>«Подвійний агент»</h4>
+          <p>Ті самі події основної гри очима іншого агента з новим психотипом «Параноїк»: бачить фальшиві зачіпки, але й реальні змови. Високе повторне використання контенту.</p>
+          <p class="meta">Нова механіка: 4-й психотип · Обсяг: 4–6 год</p></article>
+        <article class="dlc-card"><div class="dlc-art a3"><span>Реіграбельність</span></div>
+          <h4>«Холодні справи»</h4>
+          <p>Набір коротких розслідувань по 30–40 хв з варіаціями: винуватець і докази змінюються від проходження. Добре для стрімерів і повторної гри.</p>
+          <p class="meta">Нова механіка: варіативні справи · Обсяг: 6 справ</p></article>
+        <article class="dlc-card"><div class="dlc-art a4"><span>Репутація</span></div>
+          <h4>«Чистка»</h4>
+          <p>Агентство влаштовує чистку в лавах. Гравець мусить обрати сторону; фракції реагують на всю історію основної гри. Фінал залежить від репутації.</p>
+          <p class="meta">Нова механіка: перенесення рішень · Обсяг: 3 год</p></article>
+        <article class="dlc-card"><div class="dlc-art a5"><span>Спільнота</span></div>
+          <h4>«Архів Агентства»</h4>
+          <p>Редактор власних справ на основі наявних DialogueTool і QuestEditor + Steam Workshop. Безкоштовне оновлення, яке продовжує життя гри.</p>
+          <p class="meta">Нова механіка: UGC · Обсяг: інструменти</p></article>
+        <article class="dlc-card"><div class="dlc-art a6"><span>Косметика</span></div>
+          <h4>«Ретро-90»</h4>
+          <p>Костюми агента, скіни зброї, CRT/VHS-фільтри, альтернативний синтвейв-саундтрек. Недорого, підтримує розробку.</p>
+          <p class="meta">Без впливу на баланс</p></article>
+      </div>
+    </section>
+
+    <!-- ── Кастомізація ──────────────────────────────── -->
+    <section id="custom" class="ideas-block">
+      <header class="block-head">
+        <span class="num">05</span>
+        <div><h3>Способи кастомізації</h3>
+        <p class="muted">Що гравець може налаштувати під себе — від стилю агента до складності.</p></div>
+      </header>
+      <div class="custom-grid">
+        <div class="custom"><h4>Агент</h4><ul>
+          <li>Зовнішність: плащ, капелюх, окуляри, імплант</li>
+          <li>Позивний і передісторія — впливає на 2–3 репліки</li>
+          <li>Психотип + 1 риса на старті (дрібний перк і вада)</li></ul></div>
+        <div class="custom"><h4>Зброя</h4><ul>
+          <li>Модулі в слотах (глушник, приціл, магазин)</li>
+          <li>Апгрейд Mk I–III на верстаку</li>
+          <li>Скіни й гравіювання — без впливу на баланс</li></ul></div>
+        <div class="custom"><h4>Хаб</h4><ul>
+          <li>Кабінет агента: дошка розслідування, трофеї справ</li>
+          <li>Предмети-спогади відновлюють стрес</li>
+          <li>Музика на програвачі як відпочинок</li></ul></div>
+        <div class="custom"><h4>Складність</h4><ul>
+          <li>Окремі повзунки: бій, ціна ресурсів, підказки доказів</li>
+          <li>Видимість механік: прихована / в паузі / завжди</li>
+          <li>Ironman: один слот збереження</li></ul></div>
+        <div class="custom"><h4>Доступність</h4><ul>
+          <li>Підсвітка доказів, субтитри з іменами</li>
+          <li>Перепризначення клавіш, підтримка геймпада</li>
+          <li>Режими для дальтоніків, вимкнення тремтіння камери</li></ul></div>
+        <div class="custom"><h4>Візуал</h4><ul>
+          <li>Фільтри CRT / VHS / чистий</li>
+          <li>Масштаб інтерфейсу і шрифту</li>
+          <li>Швидкість друку тексту в діалогах</li></ul></div>
+      </div>
+    </section>
+
+    <!-- ── Розширення ────────────────────────────────── -->
+    <section id="expand" class="ideas-block">
+      <header class="block-head">
+        <span class="num">06</span>
+        <div><h3>Розширення проєкту</h3>
+        <p class="muted">Технічні й продуктові кроки, які роблять гру більшою без переписування.</p></div>
+      </header>
+      <div class="table-wrap"><table class="expand-table">
+        <thead><tr><th>Напрям</th><th>Що зробити</th><th>Що вже є в коді</th><th>Коли</th></tr></thead>
+        <tbody>
+          <tr><td><b>Моди і власні справи</b></td><td>Справи як Addressables-пакети; редактор справ; Steam Workshop</td><td>DialogueToolModule (графовий редактор), QuestEditorWindow, Addressables</td><td><span class="chip">після 1.0</span></td></tr>
+          <tr><td><b>Локалізація</b></td><td>Unity Localization, таблиці рядків, UA / EN, далі PL / DE</td><td>Тексти в ScriptableObject — легко винести в таблиці</td><td><span class="chip p0">зараз</span></td></tr>
+          <tr><td><b>Steam Deck і геймпад</b></td><td>Повна підтримка геймпада, інтерфейс для 800p, верифікація Deck</td><td>InputModule на новій Input System</td><td><span class="chip p1">до демо</span></td></tr>
+          <tr><td><b>CI і збірки</b></td><td>Автоматичні білди й тести через GitHub Actions + GameCI</td><td>GitHub, Actions уже працює для сайту</td><td><span class="chip p1">фаза A</span></td></tr>
+          <tr><td><b>Креш-репорти й телеметрія</b></td><td>Збір крашів і подій плейтесту (вибори, смерті, час на кроці)</td><td>LoggingSystem з каналами</td><td><span class="chip p1">до плейтестів</span></td></tr>
+          <tr><td><b>Консолі</b></td><td>Оцінити продуктивність HDRP на консолях після релізу на ПК</td><td>HDRP</td><td><span class="chip">після 1.0</span></td></tr>
+          <tr><td><b>Спільнота</b></td><td>Discord, девлоги, публічна дошка задач (цей сайт)</td><td>Сайт на GitHub Pages</td><td><span class="chip p1">з демо</span></td></tr>
+        </tbody>
+      </table></div>
+    </section>
+
+    <!-- ── Шлях до релізу ────────────────────────────── -->
+    <section id="release" class="ideas-block">
+      <header class="block-head">
+        <span class="num">07</span>
+        <div><h3>Шлях до релізу</h3>
+        <p class="muted">Кожен етап має чіткий критерій переходу далі.</p></div>
+      </header>
+      <ol class="release">
+        <li class="now"><span class="dot"></span><div><h4>Стабілізація</h4><p>Критичні баги діалогів, збережень і бою закриті; є автотести на сейви.</p><span class="gate">Перехід: жодного софтлоку за 2 години гри</span></div></li>
+        <li><span class="dot"></span><div><h4>Вертикальний зріз</h4><p>Одна справа на 30–45 хв, три психотипи, ціна рішень, модуль зброї, стелс.</p><span class="gate">Перехід: 5 плейтестерів проходять без допомоги</span></div></li>
+        <li><span class="dot"></span><div><h4>Демо</h4><p>Сторінка Steam, демо на Next Fest, збір вішлистів і відгуків.</p><span class="gate">Перехід: стабільна збірка, локалізація UA / EN</span></div></li>
+        <li><span class="dot"></span><div><h4>Ранній доступ (опційно)</h4><p>2–3 справи; оновлення кожні 1–2 місяці за відгуками.</p><span class="gate">Перехід: позитивні відгуки на демо</span></div></li>
+        <li><span class="dot"></span><div><h4>Реліз 1.0</h4><p>Повна історія, кінцівки за репутацією, досягнення, Steam Deck.</p><span class="gate">Перехід: усі P0/P1 закриті</span></div></li>
+        <li><span class="dot"></span><div><h4>Після релізу</h4><p>Безкоштовний «Архів Агентства», платні DLC-справи, косметика.</p></div></li>
+      </ol>
+    </section>
+  </main>
+  <script src="assets/ideas.js"></script>
+</body>
+</html>

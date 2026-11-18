@@ -11,7 +11,7 @@
   const epicById = Object.fromEntries(P.epics.map((e) => [e.id, e]));
   const statusName = Object.fromEntries(P.statuses.map((s) => [s.id, s.name]));
   const PRIORITY_ORDER = { P0: 0, P1: 1, P2: 2, P3: 3 };
-  const STATUS_COLORS = { backlog: "#3a4259", todo: "#60a5fa", progress: "#facc15", review: "#a78bfa", done: "#4ade80", cancelled: "#6b7280" };
+  const STATUS_COLORS = { backlog: "#5a4930", todo: "#9fb6c9", progress: "#e6b84a", review: "#c7a46b", done: "#8fbf6a", cancelled: "#6b604f" };
   // Задача «закрита», якщо виконана або скасована: вона не блокує залежні задачі
   const isClosed = (s) => s === "done" || s === "cancelled";
   const activeTasks = () => allTasks().filter((t) => t.status !== "cancelled");
@@ -36,15 +36,35 @@
     catch (e) { toast("Не вдалося зберегти в браузері"); }
   }
 
+  // Шари стану: базові задачі (data/tasks.js) → спільний стан з GitHub (sync.js) → локальні зміни браузера.
+  // Якщо підключено GitHub-токен, нові зміни йдуть у спільний стан, інакше — лише локально.
+  const SYNC = window.BoardSync;
+  const shared = () => SYNC?.state || { overrides: {}, custom: [] };
+  const clean = (o) => { if (!o) return {}; const { _at, _by, ...rest } = o; return rest; };
+  const sharedMode = () => !!SYNC?.canWrite();
+
   function allTasks() {
-    const base = P.tasks.map((t) => ({ ...t, ...(store.overrides[t.id] || {}), _base: true }));
-    return base.concat(store.custom.map((t) => ({ ...t, _base: false })));
+    const sh = shared();
+    const base = P.tasks.map((t) => ({ ...t, ...clean(sh.overrides[t.id]), ...(store.overrides[t.id] || {}), _base: true }));
+    const custom = sh.custom.map((t) => ({ ...clean(t), ...(store.overrides[t.id] || {}), _base: false, _shared: true }))
+      .concat(store.custom.map((t) => ({ ...t, _base: false })));
+    return base.concat(custom);
   }
   function getTask(id) { return allTasks().find((t) => t.id === id); }
   function patchTask(id, patch) {
+    if (sharedMode()) { SYNC.patch(id, patch, getTask(id)); return; }
     const custom = store.custom.find((t) => t.id === id);
     if (custom) Object.assign(custom, patch);
     else store.overrides[id] = { ...(store.overrides[id] || {}), ...patch };
+    save();
+  }
+  function createTask(task) {
+    if (sharedMode()) SYNC.create(task);
+    else { store.custom.push(task); save(); }
+  }
+  function deleteTask(id) {
+    if (sharedMode() && shared().custom.some((t) => t.id === id)) { SYNC.remove(id, getTask(id)); return; }
+    store.custom = store.custom.filter((x) => x.id !== id);
     save();
   }
 
@@ -83,7 +103,12 @@
       (!ph || t.phase === ph) && (!ep || t.epic === ep) && (!pr || t.priority === pr) && (!ty || t.type === ty) &&
       (!hideDone || !isClosed(t.status)));
   }
-  const byPriority = (a, b) => (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) || a.id.localeCompare(b.id);
+  // Пріоритет → порядок фази (стабілізація раніше за фічі) → ID
+  const PHASE_ORDER = Object.fromEntries(P.phases.map((p, i) => [p.id, i]));
+  const byPriority = (a, b) =>
+    (PRIORITY_ORDER[a.priority] ?? 9) - (PRIORITY_ORDER[b.priority] ?? 9) ||
+    (PHASE_ORDER[a.phase] ?? 99) - (PHASE_ORDER[b.phase] ?? 99) ||
+    a.id.localeCompare(b.id, undefined, { numeric: true });
 
   // ── Огляд ────────────────────────────────────────────
   function renderOverview() {
@@ -137,13 +162,110 @@
           <ul class="next-list">${ready.map((t) => `<li data-open="${esc(t.id)}"><span class="mono muted">${esc(t.id)}</span>${prChip(t.priority)}<span>${esc(t.title)}</span></li>`).join("") || `<li class="empty">Немає</li>`}</ul>
         </div>
       </div>
-      <div class="card" style="margin-top:16px"><h3>Прогрес за епіками</h3><div class="bars">${epicRows}</div></div>`;
+      <div class="cols" style="margin-top:16px">
+        <div class="card"><h3>Прогрес за епіками</h3><div class="bars">${epicRows}</div></div>
+        <div class="card"><h3>Остання активність команди</h3>${activityHtml()}</div>
+      </div>`;
+  }
+
+  // ── Активність і синхронізація ───────────────────────
+  const timeAgo = (iso) => {
+    const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+    if (s < 60) return "щойно";
+    if (s < 3600) return `${Math.floor(s / 60)} хв тому`;
+    if (s < 86400) return `${Math.floor(s / 3600)} год тому`;
+    return new Date(iso).toLocaleDateString("uk-UA", { day: "numeric", month: "short" });
+  };
+  function describe(e) {
+    const who = `<b>${esc(e.by)}</b>`, task = `<span class="mono">${esc(e.id)}</span> ${esc(e.title || "")}`;
+    if (e.action === "move") return `${who} перемістив(ла) ${task}: ${esc(statusName[e.from] || e.from || "—")} → <b>${esc(statusName[e.to] || e.to)}</b>`;
+    if (e.action === "create") return `${who} створив(ла) ${task}`;
+    if (e.action === "delete") return `${who} видалив(ла) ${task}`;
+    return `${who} оновив(ла) ${task}`;
+  }
+  let freshKeys = new Set();
+  function activityHtml() {
+    if (!SYNC) return `<p class="empty">Синхронізація недоступна</p>`;
+    const log = (shared().log || []).slice(0, 25);
+    const help = SYNC.canWrite() ? "" : `<p class="help">Тут видно, хто і що перемістив. Щоб ваші зміни теж бачили інші, натисніть кнопку синхронізації вгорі.</p>`;
+    if (!log.length) return help + `<p class="empty">Поки що ніхто нічого не переміщував</p>`;
+    return help + `<ul class="activity">${log.map((e) => `<li data-open="${esc(e.id)}" class="${freshKeys.has(e.at + e.id) ? "new" : ""}"><time datetime="${esc(e.at)}">${timeAgo(e.at)}</time><span>${describe(e)}</span></li>`).join("")}</ul>
+      <p class="help" style="margin-top:8px"><a href="${esc(SYNC.historyUrl)}" target="_blank" rel="noopener">Повна історія змін у git ↗</a></p>`;
+  }
+
+  const SYNC_LABEL = { idle: "Підключення…", readonly: "Лише перегляд", ok: "Синхронізовано", busy: "Зберігаю…", err: "Помилка синхронізації" };
+  function renderSyncButton() {
+    const b = $("#btnSync");
+    if (!b || !SYNC) return;
+    b.className = `sync ${SYNC.status}`;
+    b.innerHTML = `<span class="led"></span>${SYNC_LABEL[SYNC.status] || ""}${SYNC.canWrite() ? ` · ${esc(SYNC.name)}` : ""}`;
+    b.title = SYNC.error || (SYNC.canWrite() ? `Зміни зберігаються в ${SYNC.repoLabel}` : "Підключіть GitHub, щоб ваші зміни бачили інші");
+  }
+
+  function openSyncDialog() {
+    const connected = SYNC.canWrite();
+    form.innerHTML = `
+      <div class="dlg-head"><div class="id">${esc(SYNC.repoLabel)} · state/board.json</div><h3>Спільна дошка</h3></div>
+      <div class="dlg-body">
+        <p>Переміщення задач, нотатки, виконавці й нові задачі зберігаються комітом у репозиторій. Кожен, хто відкриває сайт, бачить ті самі статуси, а зміни інших з'являються автоматично (кожні 30–90 с) зі сповіщенням.</p>
+        ${connected ? `<p>Підключено як <b>${esc(SYNC.name)}</b>. Стан: ${esc(SYNC_LABEL[SYNC.status])}${SYNC.error ? ` — ${esc(SYNC.error)}` : ""}.</p>` : `
+        <div class="help"><b>Як підключитись (один раз):</b><ol>
+          <li>GitHub → Settings → Developer settings → <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">Fine-grained tokens → Generate new token</a>.</li>
+          <li>Repository access: <b>Only select repositories</b> → ${esc(SYNC.repoLabel)}.</li>
+          <li>Permissions → Repository → <b>Contents: Read and write</b>. Більше нічого не потрібно.</li>
+          <li>Вставте токен нижче. Він зберігається лише в цьому браузері й надсилається тільки на api.github.com.</li>
+        </ol>Власник репозиторію має додати учасників команди як collaborators.</div>
+        <div class="field-grid">
+          <label class="field">Ваше ім'я (видно в історії)<input id="sName" value="${esc(SYNC.name === "Анонім" ? "" : SYNC.name)}" placeholder="Андрій"></label>
+          <label class="field">GitHub-токен<input id="sToken" type="password" autocomplete="off" placeholder="github_pat_…"></label>
+        </div>
+        ${Object.keys(store.overrides).length || store.custom.length ? `<label class="check"><input id="sMigrate" type="checkbox" checked> Перенести мої локальні зміни (${Object.keys(store.overrides).length + store.custom.length}) у спільну дошку</label>` : ""}
+        <p class="help" id="sError" style="color:var(--bad)"></p>`}
+      </div>
+      <div class="dlg-foot">
+        ${connected ? `<button class="btn ghost danger" type="button" id="sOff">Відключитись</button>` : ""}
+        <div class="right"><a class="btn" href="${esc(SYNC.historyUrl)}" target="_blank" rel="noopener">Історія ↗</a><button class="btn" type="button" data-close>Закрити</button>
+        ${connected ? "" : `<button class="btn primary" type="button" id="sConnect">Підключити</button>`}</div>
+      </div>`;
+    $("#sOff", form)?.addEventListener("click", () => { SYNC.disconnect(); dlg.close(); toast("Відключено: зміни знову лише локальні"); render(); });
+    $("#sConnect", form)?.addEventListener("click", async () => {
+      const btn = $("#sConnect", form), err = $("#sError", form);
+      btn.disabled = true; btn.textContent = "Перевіряю…"; err.textContent = "";
+      try {
+        await SYNC.connect($("#sName").value, $("#sToken").value);
+        if ($("#sMigrate", form)?.checked) {
+          Object.entries(store.overrides).forEach(([id, patch]) => SYNC.patch(id, patch, getTask(id)));
+          store.custom.forEach((t) => SYNC.create(t));
+          store = { overrides: {}, custom: [] }; save();
+        }
+        dlg.close(); toast("Підключено: зміни тепер бачать усі"); render();
+      } catch (e) {
+        err.textContent = e.message; btn.disabled = false; btn.textContent = "Підключити";
+      }
+    });
+    if (!dlg.open) dlg.showModal();
+  }
+
+  function initSync() {
+    if (!SYNC) return;
+    SYNC.onStatus = renderSyncButton;
+    SYNC.onChange = () => { if (!dlg.open || !form.querySelector("#dSave")) render(); else renderSyncButton(); };
+    SYNC.onRemoteEvents = (events) => {
+      events.forEach((e) => freshKeys.add(e.at + e.id));
+      const e = events[0];
+      toast(`${e.by}: ${e.id} → ${statusName[e.to] || (e.action === "create" ? "нова задача" : "оновлено")}${events.length > 1 ? ` (+${events.length - 1})` : ""}`);
+      lastMovedId = e.id;
+      render();
+    };
+    $("#btnSync").addEventListener("click", openSyncDialog);
+    renderSyncButton();
+    SYNC.start();
   }
 
   // ── Дошка ────────────────────────────────────────────
   function cardHtml(t) {
     const ph = phaseById[t.phase];
-    return `<article class="tcard" draggable="true" data-id="${esc(t.id)}" style="--phase:${ph ? ph.color : "#3a4259"}">
+    return `<article class="tcard" draggable="true" data-id="${esc(t.id)}" style="--phase:${ph ? ph.color : "#5a4930"}">
       <div class="row"><span class="id">${esc(t.id)}</span>${prChip(t.priority)}</div>
       <div class="title">${esc(t.title)}</div>
       <div class="meta">${epicChip(t.epic)}${t.type === "bug" ? typeChip(t.type) : ""}<span class="chip">${esc(t.estimate || "—")}</span>${t.phase !== "0" ? `<span class="chip">Ф-${esc(t.phase)}</span>` : ""}${critProgress(t)}</div>
@@ -205,7 +327,7 @@
   // ── Роадмап ──────────────────────────────────────────
   function renderRoadmap() {
     const tasks = activeTasks();
-    const weeks = 13;
+    const weeks = Math.max(...P.phases.map((p) => p.weeks[1]));
     const scale = Array.from({ length: weeks }, (_, i) => `<span>Т${i + 1}</span>`).join("");
     const rows = P.phases.filter((p) => p.id !== "0").map((p) => {
       const list = tasks.filter((t) => t.phase === p.id);
@@ -224,7 +346,7 @@
         <ul>${list.map((t) => `<li data-open="${esc(t.id)}">${t.status === "done" ? "✓ " : ""}<span class="mono">${esc(t.id)}</span> ${esc(t.title)}</li>`).join("")}</ul></div>`;
     }).join("");
     $("#view-roadmap").innerHTML = `
-      <div class="view-head"><h2>Роадмап</h2><p class="muted">Орієнтовно 13 тижнів для однієї людини. Фази B і C частково йдуть паралельно; вертикальний зріз — фаза E.</p></div>
+      <div class="view-head"><h2>Роадмап</h2><p class="muted">Орієнтовно ${weeks} тижнів для однієї людини. Спершу стабілізація, далі фази B і C частково паралельно; вертикальний зріз — фаза E.</p></div>
       <div class="card"><div class="gantt" style="--weeks:${weeks}">
         <div class="gantt-scale"><div></div><div class="gantt-weeks">${scale}</div></div>${rows}
       </div></div>
@@ -314,8 +436,8 @@
     const del = $("#dDelete", form);
     if (del) del.addEventListener("click", () => {
       if (!confirm(`Видалити ${id}?`)) return;
-      store.custom = store.custom.filter((x) => x.id !== id);
-      save(); dlg.close(); render(); toast(`${id} видалено`);
+      deleteTask(id);
+      dlg.close(); render(); toast(`${id} видалено`);
     });
     if (!dlg.open) dlg.showModal();
   }
@@ -348,7 +470,7 @@
     $("#nCreate", form).addEventListener("click", () => {
       const title = $("#nTitle").value.trim();
       if (!title) { $("#nTitle").focus(); return; }
-      store.custom.push({
+      createTask({
         id: nextId, title,
         desc: $("#nDesc").value.trim(),
         criteria: $("#nCrit").value.split("\n").map((s) => s.trim()).filter(Boolean),
@@ -357,7 +479,7 @@
         deps: $("#nDeps").value.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean),
         status: "backlog"
       });
-      save(); dlg.close(); render(); toast(`${nextId} створено`);
+      dlg.close(); render(); toast(`${nextId} створено`);
     });
     dlg.showModal();
     $("#nTitle").focus();
@@ -465,6 +587,7 @@
       save(); render(); toast("Локальні зміни скинуто");
     });
     render();
+    initSync();
 
     // Посилання виду index.html?task=AG-006 (наприклад, зі сторінки GDD) відкривають картку задачі
     const linked = new URLSearchParams(location.search).get("task");
