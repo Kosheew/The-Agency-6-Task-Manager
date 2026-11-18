@@ -109,6 +109,14 @@ $$;
 grant execute on function public.board_patch(text, jsonb, text, text, boolean, boolean) to authenticated;
 grant execute on function public.is_member() to anon, authenticated;
 
+-- ── Доступ до таблиць через API ──────────────────────────────────────────
+-- Нові проєкти Supabase не відкривають таблиці автоматично. Ці дозволи лише відкривають
+-- таблиці для API; хто саме може читати й писати, далі вирішує Row Level Security нижче.
+grant usage on schema public to anon, authenticated;
+grant select on public.board_tasks, public.board_log to anon, authenticated;
+grant insert, update on public.board_tasks to authenticated;
+grant select on public.board_members to authenticated;
+
 -- ── Права доступу (Row Level Security) ───────────────────────────────────
 
 alter table public.board_members enable row level security;
