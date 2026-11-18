@@ -94,20 +94,47 @@ create trigger board_tasks_stamp
 
 -- ── Атомарне злиття змін (двоє людей не перетирають поля одне одного) ────
 
+-- Спершу UPDATE, і лише якщо рядка ще немає — INSERT.
+-- (insert ... on conflict запускає тригер двічі — як вставку і як оновлення — і журнал дублюється.)
 create or replace function public.board_patch(
   p_id text, p_patch jsonb, p_title text default null, p_base_status text default null,
   p_is_custom boolean default false, p_deleted boolean default false
 ) returns void
-language sql security invoker set search_path = public as $$
-  insert into public.board_tasks (id, data, title, base_status, is_custom, deleted)
-  values (p_id, p_patch, p_title, p_base_status, p_is_custom, p_deleted)
-  on conflict (id) do update
-    set data    = public.board_tasks.data || excluded.data,
-        title   = coalesce(excluded.title, public.board_tasks.title),
-        deleted = excluded.deleted;
-$$;
+language plpgsql security invoker set search_path = public as $$
+begin
+  update public.board_tasks
+     set data    = data || p_patch,
+         title   = coalesce(p_title, title),
+         deleted = p_deleted
+   where id = p_id;
+  if not found then
+    insert into public.board_tasks (id, data, title, base_status, is_custom, deleted)
+    values (p_id, p_patch, p_title, p_base_status, p_is_custom, p_deleted);
+  end if;
+end $$;
 grant execute on function public.board_patch(text, jsonb, text, text, boolean, boolean) to authenticated;
 grant execute on function public.is_member() to anon, authenticated;
+
+-- ── Учасники для вибору виконавця ────────────────────────────────────────
+-- Кожен редактор має постійний id; у задачі зберігається цей id та ім'я — без email.
+alter table public.board_members add column if not exists id uuid not null default gen_random_uuid();
+create unique index if not exists board_members_id_idx on public.board_members (id);
+
+-- Список людей проєкту (лише для редакторів): id, ім'я, чи це я, чи людина вже входила
+create or replace function public.board_people()
+returns table (member_id uuid, name text, is_me boolean, joined boolean)
+language sql stable security definer set search_path = public, auth as $$
+  select m.id,
+         coalesce(nullif(u.raw_user_meta_data ->> 'name', ''), split_part(m.email, '@', 1)),
+         lower(m.email) = public.me_email(),
+         u.id is not null
+    from public.board_members m
+    left join auth.users u on lower(u.email) = lower(m.email)
+   where public.is_member()
+   order by 2;
+$$;
+revoke all on function public.board_people() from public, anon;
+grant execute on function public.board_people() to authenticated;
 
 -- ── Доступ до таблиць через API ──────────────────────────────────────────
 -- Нові проєкти Supabase не відкривають таблиці автоматично. Ці дозволи лише відкривають

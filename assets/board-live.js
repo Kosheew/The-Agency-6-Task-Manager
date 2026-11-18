@@ -25,7 +25,8 @@
 
   function tasks() {
     const sh = SYNC?.state || { overrides: {}, custom: [] };
-    const loc = localStore();
+    // Редактор бачить лише спільний стан (як на дошці); локальні зміни — лише в локальному режимі
+    const loc = SYNC?.canWrite() ? { overrides: {}, custom: [] } : localStore();
     return P.tasks.map((t) => ({ ...t, ...clean(sh.overrides[t.id]), ...(loc.overrides[t.id] || {}) }))
       .concat(sh.custom.map((t) => ({ ...clean(t), ...(loc.overrides[t.id] || {}) })), loc.custom);
   }
@@ -75,8 +76,47 @@
       <span class="ls-num"><b>${st.pct}%</b> · ${st.done}/${st.total}</span>
       <span class="ls-item">Стабілізація ${stab.done}/${stab.total}</span>
       <span class="ls-item">Відкритих P0: <b>${p0}</b></span>
+      ${SYNC?.myMemberId ? `<span class="ls-item ls-mine" data-href="index.html?mine=1#board">Мої задачі: <b>${myOpen(all).length}</b></span>` : ""}
       <span class="ls-mode"><i></i>${esc(mode)}</span>`;
     el.title = "Відкрити дошку";
+    const mine = el.querySelector(".ls-mine");
+    if (mine) mine.onclick = (e) => { e.preventDefault(); location.href = mine.dataset.href; };
+  }
+
+  // ── Сповіщення про призначені задачі ─────────────────
+  const myOpen = (all) => all.filter((t) => SYNC?.myMemberId && t.assigneeId === SYNC.myMemberId && t.status !== "done" && t.status !== "cancelled");
+  const seenKey = () => `agency6-seen-assign-${SYNC.myMemberId}`;
+  function seen() { try { return new Set(JSON.parse(localStorage.getItem(seenKey()) || "[]")); } catch (e) { return new Set(); } }
+  function markSeen(ids) {
+    const s = seen(); ids.forEach((id) => s.add(id));
+    try { localStorage.setItem(seenKey(), JSON.stringify([...s])); } catch (e) { /* ігноруємо */ }
+  }
+  function notifyBox() {
+    let box = document.getElementById("assignNotes");
+    if (!box) { box = document.createElement("div"); box.id = "assignNotes"; box.className = "assign-notes"; box.setAttribute("aria-live", "polite"); document.body.appendChild(box); }
+    return box;
+  }
+  function notify(all) {
+    if (!SYNC?.myMemberId || !SYNC.canWrite()) return;
+    const known = seen();
+    const fresh = myOpen(all).filter((t) => !known.has(t.id));
+    if (!fresh.length) return;
+    // Перший візит після входу: не засипаємо всіма старими задачами — одне зведене сповіщення
+    const firstVisit = localStorage.getItem(seenKey()) === null;
+    markSeen(fresh.map((t) => t.id));
+    const box = notifyBox();
+    const card = document.createElement("div");
+    card.className = "assign-note";
+    const list = fresh.slice(0, 4).map((t) => `<a href="index.html?task=${encodeURIComponent(t.id)}#list"><b>${esc(t.id)}</b> ${esc(t.title)}</a>`).join("");
+    card.innerHTML = `
+      <div class="an-head"><span class="an-pin">◆</span><b>${firstVisit ? `На вас ${fresh.length} ${fresh.length === 1 ? "задача" : "задач"}` : fresh.length === 1 ? "Вам призначили задачу" : `Вам призначили ${fresh.length} задач`}</b>
+        <button type="button" class="an-close" aria-label="Закрити">✕</button></div>
+      <div class="an-list">${list}${fresh.length > 4 ? `<a href="index.html?mine=1#board">ще ${fresh.length - 4}…</a>` : ""}</div>
+      <a class="an-all" href="index.html?mine=1#board">Усі мої задачі →</a>`;
+    card.querySelector(".an-close").onclick = () => card.remove();
+    box.appendChild(card);
+    setTimeout(() => card.classList.add("fade"), 14000);
+    setTimeout(() => card.remove(), 15000);
   }
 
   // ── Чипи задач ────────────────────────────────────────
@@ -116,6 +156,7 @@
     strip(all);
     chips(all);
     blocks(all);
+    notify(all);
   }
 
   window.BoardLive = { tasks, stats, update };

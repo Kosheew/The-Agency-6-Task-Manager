@@ -45,11 +45,15 @@
 
   function allTasks() {
     const sh = shared();
-    const base = P.tasks.map((t) => ({ ...t, ...clean(sh.overrides[t.id]), ...(store.overrides[t.id] || {}), _base: true }));
-    const custom = sh.custom.map((t) => ({ ...clean(t), ...(store.overrides[t.id] || {}), _base: false, _shared: true }))
-      .concat(store.custom.map((t) => ({ ...t, _base: false })));
+    // Редактор бачить лише спільний стан: старі локальні зміни (зроблені до входу) більше не
+    // перекривають дошку — інакше людина бачить одне, а команда інше. Їх можна перенести в профілі.
+    const loc = sharedMode() ? { overrides: {}, custom: [] } : store;
+    const base = P.tasks.map((t) => ({ ...t, ...clean(sh.overrides[t.id]), ...(loc.overrides[t.id] || {}), _base: true }));
+    const custom = sh.custom.map((t) => ({ ...clean(t), ...(loc.overrides[t.id] || {}), _base: false, _shared: true }))
+      .concat(loc.custom.map((t) => ({ ...t, _base: false })));
     return base.concat(custom);
   }
+  const isMine = (t) => !!SYNC?.myMemberId && t.assigneeId === SYNC.myMemberId;
   function getTask(id) { return allTasks().find((t) => t.id === id); }
   function patchTask(id, patch) {
     if (sharedMode()) { SYNC.patch(id, patch, getTask(id)); return; }
@@ -98,10 +102,11 @@
     const q = $("#fSearch").value.trim().toLowerCase();
     const ph = $("#fPhase").value, ep = $("#fEpic").value, pr = $("#fPriority").value, ty = $("#fType").value;
     const hideDone = $("#fHideDone").checked;
+    const onlyMine = $("#fMine")?.checked;
     return allTasks().filter((t) =>
-      (!q || `${t.id} ${t.title} ${t.desc}`.toLowerCase().includes(q)) &&
+      (!q || `${t.id} ${t.title} ${t.desc} ${t.assignee || ""}`.toLowerCase().includes(q)) &&
       (!ph || t.phase === ph) && (!ep || t.epic === ep) && (!pr || t.priority === pr) && (!ty || t.type === ty) &&
-      (!hideDone || !isClosed(t.status)));
+      (!hideDone || !isClosed(t.status)) && (!onlyMine || isMine(t)));
   }
   // Пріоритет → порядок фази (стабілізація раніше за фічі) → ID
   const PHASE_ORDER = Object.fromEntries(P.phases.map((p, i) => [p.id, i]));
@@ -321,10 +326,15 @@
     SYNC.onRemoteEvents = (events) => {
       events.forEach((e) => freshKeys.add(e.at + e.id));
       const e = events[0];
-      toast(`${e.by}: ${e.id} → ${statusName[e.to] || (e.action === "create" ? "нова задача" : "оновлено")}${events.length > 1 ? ` (+${events.length - 1})` : ""}`);
+      if (e.action === "move") toast(`${e.by}: ${e.id} → ${statusName[e.to] || e.to}`);
+      else if (e.action === "create") toast(`${e.by}: нова задача ${e.id}`);
       lastMovedId = e.id;
       render();
     };
+    // «Лише мої» — видно, коли людина увійшла як редактор; ?mine=1 вмикає фільтр одразу
+    const mine = $("#fMine");
+    if (mine && new URLSearchParams(location.search).get("mine") === "1") mine.checked = true;
+    window.addEventListener("board:change", () => { const w = $("#fMineWrap"); if (w) w.hidden = !SYNC.myMemberId; });
     $("#btnSync").addEventListener("click", openSyncDialog);
     $("#btnLogin")?.addEventListener("click", openSyncDialog);
     renderSyncButton();
@@ -339,6 +349,7 @@
       <div class="row"><span class="id">${esc(t.id)}</span>${prChip(t.priority)}</div>
       <div class="title">${esc(t.title)}</div>
       <div class="meta">${epicChip(t.epic)}${t.type === "bug" ? typeChip(t.type) : ""}<span class="chip">${esc(t.estimate || "—")}</span>${t.phase !== "0" ? `<span class="chip">Ф-${esc(t.phase)}</span>` : ""}${critProgress(t)}</div>
+      ${t.assignee ? `<div class="assignee ${isMine(t) ? "mine" : ""}" title="Виконавець: ${esc(t.assignee)}">${avatarImg(t.assignee, 20)}<span>${isMine(t) ? "Ви" : esc(t.assignee)}</span></div>` : ""}
     </article>`;
   }
   function renderBoard() {
@@ -470,7 +481,7 @@
         ${t.gdd ? `<section><h4>GDD</h4><p><a href="${esc(P.links.gdd)}" target="_blank" rel="noopener">${esc(t.gdd)}</a></p></section>` : ""}
         <section class="field-grid">
           <label class="field">Статус<select id="dStatus">${P.statuses.map((s) => `<option value="${s.id}" ${s.id === t.status ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>
-          <label class="field">Виконавець<input id="dAssignee" value="${esc(t.assignee || "")}" placeholder="ім'я"></label>
+          ${assigneeField(t)}
         </section>
         <label class="field">Нотатки<textarea id="dNotes" placeholder="Рішення, посилання, питання…">${esc(t.notes || "")}</textarea></label>
       </div>
@@ -489,14 +500,28 @@
       cb.closest("li").classList.toggle("done", cb.checked);
       render();
     }));
+    // Записуємо лише те, що справді змінилось — менше запитів і «порожніх» записів у журналі
+    const changes = (status) => {
+      const next = { status, notes: $("#dNotes").value, ...readAssignee() };
+      return Object.fromEntries(Object.entries(next).filter(([k, v]) => (t[k] ?? "") !== (v ?? "")));
+    };
     $("#dSave", form).addEventListener("click", () => {
-      patchTask(id, { status: $("#dStatus").value, notes: $("#dNotes").value, assignee: $("#dAssignee").value.trim() });
+      const patch = changes($("#dStatus").value);
+      // Призначили самі собі — сповіщення «вам призначили» не потрібне
+      if (patch.assigneeId && patch.assigneeId === SYNC?.myMemberId) {
+        try {
+          const key = `agency6-seen-assign-${SYNC.myMemberId}`;
+          const s = new Set(JSON.parse(localStorage.getItem(key) || "[]")); s.add(id);
+          localStorage.setItem(key, JSON.stringify([...s]));
+        } catch (e) { /* ігноруємо */ }
+      }
+      if (Object.keys(patch).length) patchTask(id, patch);
       dlg.close();
-      toast(`${id} збережено`);
+      toast(Object.keys(patch).length ? `${id} збережено` : "Змін немає");
       render();
     });
     const setStatus = (status, msg) => {
-      patchTask(id, { status, notes: $("#dNotes").value, assignee: $("#dAssignee").value.trim() });
+      patchTask(id, changes(status));
       dlg.close(); toast(msg); render();
     };
     $("#dCancelTask", form)?.addEventListener("click", () => {
@@ -511,6 +536,33 @@
     });
     if (!dlg.open) dlg.showModal();
   }
+  // Виконавець: у спільній дошці — лише учасники проєкту (зі списку редакторів), без email;
+  // у локальному режимі — довільне ім'я.
+  function assigneeField(t) {
+    const people = SYNC?.people || [];
+    if (sharedMode() && people.length) {
+      const known = people.some((p) => p.member_id === t.assigneeId);
+      return `<label class="field">Виконавець<select id="dAssignee">
+        <option value="">— не призначено —</option>
+        ${people.map((p) => `<option value="${esc(p.member_id)}" ${p.member_id === t.assigneeId ? "selected" : ""}>${esc(p.name)}${p.is_me ? " (ви)" : ""}${p.joined ? "" : " · ще не входив"}</option>`).join("")}
+        ${t.assigneeId && !known ? `<option value="${esc(t.assigneeId)}" selected>${esc(t.assignee || "Колишній учасник")}</option>` : ""}
+      </select></label>`;
+    }
+    if (SYNC?.configured && !sharedMode()) {
+      return `<label class="field">Виконавець<input value="${esc(t.assignee || "—")}" disabled title="Призначати можуть редактори після входу"></label>`;
+    }
+    return `<label class="field">Виконавець<input id="dAssignee" value="${esc(t.assignee || "")}" placeholder="ім'я"></label>`;
+  }
+  function readAssignee() {
+    const el = $("#dAssignee", form);
+    if (!el) return {};
+    if (el.tagName === "SELECT") {
+      const p = (SYNC.people || []).find((x) => x.member_id === el.value);
+      return el.value ? { assigneeId: el.value, assignee: p ? p.name : el.selectedOptions[0]?.textContent } : { assigneeId: "", assignee: "" };
+    }
+    return { assignee: el.value.trim() };
+  }
+
   function blockers(id) {
     const list = allTasks().filter((t) => (t.deps || []).includes(id));
     if (!list.length) return "";

@@ -25,6 +25,8 @@
     isMember: false,
     user: null,
     client: null,
+    people: [],            // учасники проєкту: {member_id, name, is_me, joined} — лише для редакторів
+    myMemberId: "",
     onChange: () => {},
     onStatus: () => {},
     onRemoteEvents: () => {},
@@ -38,9 +40,27 @@
     historyUrl: null
   };
 
+  // Останній відомий спільний стан зберігається в браузері: сторінка показує його одразу,
+  // ще до з'єднання з базою, а свіжі дані підтягуються за долі секунди.
+  const CACHE_KEY = "agency6-shared-cache";
+  let cacheTimer = null;
+  function saveCache() {
+    clearTimeout(cacheTimer);
+    cacheTimer = setTimeout(() => {
+      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ at: Date.now(), state: { ...S.state, log: S.state.log.slice(0, 50) } })); } catch (e) { /* немає місця або приватний режим */ }
+    }, 300);
+  }
+  function loadCache() {
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
+      if (c?.state) S.state = { overrides: c.state.overrides || {}, custom: c.state.custom || [], log: c.state.log || [] };
+    } catch (e) { /* пошкоджений кеш — ігноруємо */ }
+  }
+
   const changed = () => {
     S.onChange();
     window.dispatchEvent(new CustomEvent("board:change"));
+    saveCache();
   };
   function setStatus(status, error = "") {
     S.status = status; S.error = error;
@@ -114,6 +134,7 @@
       .on("postgres_changes", { event: "*", schema: "public", table: "board_tasks" }, (p) => { applyRow(p.new); changed(); })
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "board_log" }, (p) => {
         const e = logEntry(p.new);
+        if (S.state.log.some((x) => x.at === e.at && x.id === e.id && x.action === e.action)) return;   // без дублів
         S.state.log = [e, ...S.state.log].slice(0, LOG_LIMIT);
         if (e.userId && e.userId !== S.userId) S.onRemoteEvents([e]);
         changed();
@@ -129,11 +150,20 @@
   // ── Вхід за посиланням з email ────────────────────────
   async function loadUser(session) {
     const u = session?.user;
-    if (!u) { S.user = null; S.isMember = false; return; }
+    if (!u) { S.user = null; S.isMember = false; S.people = []; S.myMemberId = ""; return; }
     const email = (u.email || "").toLowerCase();
     S.user = { id: u.id, email, name: (u.user_metadata?.name || "").trim() || email.split("@")[0] };
     const { data, error } = await S.client.rpc("is_member");
     S.isMember = !error && data === true;
+    await loadPeople();
+  }
+
+  // Учасники проєкту для вибору виконавця і «мій» id для сповіщень
+  async function loadPeople() {
+    if (!S.isMember) { S.people = []; S.myMemberId = ""; return; }
+    const { data, error } = await S.client.rpc("board_people");
+    S.people = error ? [] : data || [];
+    S.myMemberId = S.people.find((p) => p.is_me)?.member_id || "";
   }
 
   // Надсилає лист з посиланням для входу. Повертає текст помилки або "".
@@ -158,12 +188,13 @@
     if (error) return error.message;
     await S.client.auth.refreshSession();          // нове ім'я одразу потрапляє в токен для бази
     S.user.name = name;
+    await loadPeople();                              // нове ім'я в списку виконавців
     changed();
     return "";
   };
   S.disconnect = async () => {
     await S.client?.auth.signOut();
-    S.user = null; S.isMember = false;
+    S.user = null; S.isMember = false; S.people = []; S.myMemberId = "";
     setStatus("readonly"); changed();
   };
 
@@ -179,6 +210,8 @@
 
   S.start = async () => {
     if (!S.configured) { setStatus("offline"); return; }
+    loadCache();          // миттєво показати останній відомий стан
+    changed();
     try {
       await loadLibrary();
       S.client = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
@@ -186,11 +219,16 @@
         auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" }
       });
       const { data } = await S.client.auth.getSession();
-      await loadUser(data.session);
-      S.client.auth.onAuthStateChange(async (_e, session) => { await loadUser(session); setStatus(S.canWrite() ? "ok" : "readonly"); changed(); });
-      await reload();
-      setStatus(S.canWrite() ? "ok" : "readonly");
+      // Користувач і дані дошки завантажуються паралельно, підписка на зміни — одразу
       subscribe();
+      await Promise.all([loadUser(data.session), reload()]);
+      setStatus(S.canWrite() ? "ok" : "readonly");
+      changed();
+      S.client.auth.onAuthStateChange(async (event, session) => {
+        // токен оновлюється щогодини, а початкову сесію вже завантажено — перечитувати нічого не треба
+        if (event === "TOKEN_REFRESHED" || event === "INITIAL_SESSION") return;
+        await loadUser(session); setStatus(S.canWrite() ? "ok" : "readonly"); changed();
+      });
     } catch (e) {
       setStatus("err", /failed to fetch|networkerror|load failed/i.test(e.message)
         ? "Немає зв'язку з Supabase — перевірте інтернет і адресу в data/config.js"
