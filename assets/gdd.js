@@ -112,34 +112,47 @@
     $("#gddToc").innerHTML = items.join("");
   }
 
-  // Підсвітка поточного розділу в змісті, поява розділів при прокрутці, прогрес читання
+  // Підсвітка поточного розділу в змісті та прогрес читання.
+  // Рахується в одному кадрі (requestAnimationFrame) на прокрутку — без IntersectionObserver,
+  // щоб стан не відставав при швидкій прокрутці чи переході зі змісту.
+  // Текст розділів завжди видимий: анімація лише прикрашає перше завантаження.
   function observe(article) {
-    const links = Object.fromEntries($$("#gddToc a").map((a) => [a.dataset.target, a]));
-    const spy = new IntersectionObserver((entries) => {
-      entries.forEach((e) => {
-        if (!e.isIntersecting) return;
-        $$("#gddToc a.active").forEach((a) => a.classList.remove("active"));
-        const a = links[e.target.id];
-        if (a) {
-          a.classList.add("active");
-          a.scrollIntoView({ block: "nearest" });
-        }
-      });
-    }, { rootMargin: "-80px 0px -70% 0px" });
-    $$("h2, h3", article).forEach((h) => spy.observe(h));
-
-    const reveal = new IntersectionObserver((entries) => {
-      entries.forEach((e) => { if (e.isIntersecting) { e.target.classList.add("in"); reveal.unobserve(e.target); } });
-    }, { rootMargin: "0px 0px -10% 0px" });
-    $$(".gdd-section", article).forEach((s) => reveal.observe(s));
-
+    const toc = $("#gddToc");
+    const links = Object.fromEntries($$("a", toc).map((a) => [a.dataset.target, a]));
+    const heads = $$("h2, h3", article);
     const bar = $("#readProgress");
-    const onScroll = () => {
+    let current = null, ticking = false;
+
+    const setActive = (id) => {
+      if (id === current) return;
+      links[current]?.classList.remove("active");
+      current = id;
+      const a = links[id];
+      if (!a) return;
+      a.classList.add("active");
+      // Прокручуємо лише сам контейнер змісту, не сторінку
+      const top = a.offsetTop - toc.offsetTop;
+      if (top < toc.scrollTop || top + a.offsetHeight > toc.scrollTop + toc.clientHeight) {
+        toc.scrollTop = top - toc.clientHeight / 2;
+      }
+    };
+
+    const update = () => {
+      ticking = false;
       const max = document.documentElement.scrollHeight - window.innerHeight;
       bar.style.transform = `scaleX(${max > 0 ? Math.min(1, window.scrollY / max) : 0})`;
+      // Активний — останній заголовок, що піднявся вище 30% висоти екрана
+      const line = window.innerHeight * 0.3;
+      let id = heads[0]?.id;
+      for (const h of heads) {
+        if (h.getBoundingClientRect().top <= line) id = h.id; else break;
+      }
+      setActive(id);
     };
+    const onScroll = () => { if (!ticking) { ticking = true; requestAnimationFrame(update); } };
     window.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
+    window.addEventListener("resize", onScroll, { passive: true });
+    update();
   }
 
   // Пошук: підсвічує збіги, Enter — до наступного
@@ -177,7 +190,6 @@
       frag.append(node.nodeValue.slice(last));
       node.replaceWith(frag);
     });
-    $$(".gdd-section", article).forEach((s) => s.classList.add("in"));
     info.textContent = hits.length ? `Знайдено: ${hits.length} · Enter — далі` : "Нічого не знайдено";
     next();
   }
@@ -195,10 +207,7 @@
     const input = $("#gddSearch");
     input.addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => search(input.value.trim()), 200); });
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); next(); } });
-    $("#btnPrint").addEventListener("click", () => {
-      $$(".gdd-section").forEach((s) => s.classList.add("in"));
-      window.print();
-    });
+    $("#btnPrint").addEventListener("click", () => window.print());
     if (location.hash) document.getElementById(decodeURIComponent(location.hash.slice(1)))?.scrollIntoView();
   }
 

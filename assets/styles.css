@@ -504,11 +504,20 @@ tbody tr { transition: background .15s; }
 mark.gdd-hit { background: rgba(250, 204, 21, .3); color: inherit; border-radius: 3px; padding: 0 1px; }
 mark.gdd-hit.current { background: var(--warn); color: #111; box-shadow: 0 0 10px rgba(250, 204, 21, .6); }
 
-/* поява розділів при прокрутці */
-.gdd-section { opacity: 0; transform: translateY(18px); transition: opacity .6s ease, transform .6s cubic-bezier(.2, .7, .2, 1), border-color .3s; }
-.gdd-section.in { opacity: 1; transform: none; }
+/* Анімація лише при завантаженні і лише для перших розділів; текст ніколи не ховається */
+.gdd-section { transition: border-color .3s; }
 .gdd-section:hover { border-color: #313a50; }
-.no-js .gdd-section { opacity: 1; transform: none; }
+.gdd > h1, .gdd > .gdd-meta { animation: fadeUp .5s cubic-bezier(.2, .7, .2, 1) both; }
+.gdd-section:nth-of-type(-n+3) { animation: fadeUp .55s cubic-bezier(.2, .7, .2, 1) both; }
+.gdd-section:nth-of-type(2) { animation-delay: .08s; }
+.gdd-section:nth-of-type(3) { animation-delay: .16s; }
+html:has(.gdd-page) { scroll-behavior: smooth; }
+
+/* Продуктивність: на довгій сторінці без нескінченних анімацій і розмиття під шапкою,
+   бо вони змушують браузер перемальовувати шапку кожен кадр під час прокрутки */
+.gdd-page .topbar { backdrop-filter: none; background: rgba(11, 13, 20, .97); }
+.gdd-page .brand-mark, .gdd-page .brand h1 { animation: none; }
+.gdd-page .read-progress { box-shadow: none; will-change: transform; }
 
 @media (max-width: 960px) {
   .gdd-layout { grid-template-columns: 1fr; padding-top: 16px; }
@@ -521,7 +530,7 @@ mark.gdd-hit.current { background: var(--warn); color: #111; box-shadow: 0 0 10p
   .topbar, .gdd-toc, .read-progress, .gdd-tasks { display: none !important; }
   body { background: #fff; color: #111; }
   .gdd-layout { display: block; padding: 0; }
-  .gdd-section { opacity: 1 !important; transform: none !important; background: #fff; border: 0; padding: 0; break-inside: auto; }
+  .gdd-section { animation: none !important; background: #fff; border: 0; padding: 0; break-inside: auto; }
   .gdd h1 { color: #111; background: none; -webkit-text-fill-color: #111; }
   .gdd h3, .gdd code, .gdd a { color: #333; }
   .gdd strong { color: #000; }
