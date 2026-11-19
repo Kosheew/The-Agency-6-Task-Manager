@@ -949,3 +949,26 @@ tr.is-epic td.ttl { font-weight: 700; color: var(--epic); }
 
 /* Картки на дошці з'являються швидше */
 .view.enter .tcard { animation-delay: calc(40ms + var(--i, 0) * 8ms) !important; animation-duration: .25s !important; }
+
+/* ── Команда ── */
+.team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 14px; margin-bottom: 14px; }
+.person { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; display: grid; gap: 10px; align-content: start; }
+.person.me { border-color: color-mix(in srgb, var(--accent) 60%, var(--line)); }
+.person.nobody { border-style: dashed; }
+.person header { display: flex; align-items: center; gap: 10px; }
+.person header > div { display: grid; min-width: 0; flex: 1; }
+.person header b { font-family: "Barlow Condensed", sans-serif; font-size: 19px; letter-spacing: .03em; }
+.person header .muted { font-size: 12px; }
+.btn.small { padding: 4px 9px; font-size: 12px; }
+.p-stats { display: grid; grid-template-columns: repeat(5, 1fr); gap: 4px; }
+.p-stats .ps { display: grid; justify-items: center; gap: 1px; padding: 5px 2px; border-radius: 6px; background: var(--panel-2); font-size: 10px; color: var(--muted); text-align: center; line-height: 1.15; }
+.p-stats .ps b { font: 700 16px var(--mono); color: var(--text); }
+.p-stats .ps.status-progress b { color: #e6b84a; }
+.p-stats .ps.status-review b { color: #c7a46b; }
+.p-stats .ps.status-done b { color: #8fbf6a; }
+.p-tasks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.p-tasks li { display: flex; align-items: center; gap: 7px; padding: 5px 7px; border-radius: 6px; cursor: pointer; font-size: 13px; }
+.p-tasks li:hover { background: var(--panel-2); }
+.p-tasks li b { font: 600 11px var(--mono); color: var(--muted); white-space: nowrap; }
+.p-tasks li span:not(.chip):not(.ticon) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.muted.small { font-size: 12px; margin: 0; }

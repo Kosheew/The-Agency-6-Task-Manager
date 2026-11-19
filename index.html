@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
-  <link rel="stylesheet" href="assets/styles.css?v=20261119-1">
+  <link rel="stylesheet" href="assets/styles.css?v=20261119-2">
 </head>
 <body>
   <header class="topbar">
@@ -24,6 +24,7 @@
       <a href="#overview" data-view="overview">Огляд</a>
       <a href="#board" data-view="board">Дошка</a>
       <a href="#list" data-view="list">Список</a>
+      <a href="#team" data-view="team">Команда</a>
       <a href="#roadmap" data-view="roadmap">Роадмап</a>
       <a href="#gaps" data-view="gaps">Прогалини</a>
       <a href="#visual" data-view="visual">Візуал</a>
@@ -53,6 +54,7 @@
       <option>P0</option><option>P1</option><option>P2</option><option>P3</option>
     </select>
     <select id="fType" aria-label="Тип"></select>
+    <select id="fAssignee" aria-label="Виконавець"></select>
     <label class="check"><input id="fHideDone" type="checkbox"> Сховати готові й скасовані</label>
     <label class="check" id="fMineWrap" hidden><input id="fMine" type="checkbox"> Лише мої</label>
   </section>
@@ -61,6 +63,7 @@
     <section class="view" id="view-overview"></section>
     <section class="view" id="view-board"></section>
     <section class="view" id="view-list"></section>
+    <section class="view" id="view-team"></section>
     <section class="view" id="view-roadmap"></section>
     <section class="view" id="view-gaps"></section>
 
@@ -195,10 +198,10 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
 
-  <script src="data/tasks.js?v=20261119-1"></script>
-  <script src="data/config.js?v=20261119-1"></script>
-  <script src="assets/sync.js?v=20261119-1"></script>
-  <script src="assets/app.js?v=20261119-1"></script>
-  <script src="assets/board-live.js?v=20261119-1"></script>
+  <script src="data/tasks.js?v=20261119-2"></script>
+  <script src="data/config.js?v=20261119-2"></script>
+  <script src="assets/sync.js?v=20261119-2"></script>
+  <script src="assets/app.js?v=20261119-2"></script>
+  <script src="assets/board-live.js?v=20261119-2"></script>
 </body>
 </html>

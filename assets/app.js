@@ -150,7 +150,26 @@
     $("#fSprint").value = sprintChoice();
     if ($("#fSprint").selectedIndex < 0) $("#fSprint").value = "current";
     $("#fSprint").addEventListener("change", () => { try { localStorage.setItem(SPRINT_KEY, $("#fSprint").value); } catch (e) { /* ігноруємо */ } });
+    fillAssigneeFilter();
     $$("#filters input, #filters select").forEach((el) => el.addEventListener("input", render));
+  }
+  // Виконавці: учасники проєкту (для редакторів) + усі імена, що вже стоять у задачах
+  const NOBODY = "__none";
+  const personKey = (t) => t.assigneeId || (t.assignee ? "name:" + t.assignee : NOBODY);
+  function teamList() {
+    const map = new Map();
+    (SYNC?.people || []).forEach((p) => map.set(p.member_id, { key: p.member_id, name: p.name, me: p.is_me }));
+    allTasks().forEach((t) => { const k = personKey(t); if (k !== NOBODY && !map.has(k)) map.set(k, { key: k, name: t.assignee || "?" }); });
+    return [...map.values()].sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0) || a.name.localeCompare(b.name));
+  }
+  function fillAssigneeFilter() {
+    const el = $("#fAssignee");
+    if (!el) return;
+    const cur = el.value || new URLSearchParams(location.search).get("who") || "";
+    el.innerHTML = `<option value="">Усі виконавці</option><option value="${NOBODY}">Не призначено</option>` +
+      teamList().map((p) => `<option value="${esc(p.key)}">${esc(p.name)}${p.me ? " (ви)" : ""}</option>`).join("");
+    el.value = cur;
+    if (el.selectedIndex < 0) el.value = "";
   }
   function filtered() {
     const q = $("#fSearch").value.trim().toLowerCase();
@@ -158,7 +177,8 @@
     const sp = sprintFilterId(), spNone = $("#fSprint")?.value === "none";
     const hideDone = $("#fHideDone").checked;
     const onlyMine = $("#fMine")?.checked;
-    return allTasks().filter((t) =>
+    const who = $("#fAssignee")?.value || "";
+    return allTasks().filter((t) => (!who || personKey(t) === who) &&
       (!q || `${t.id} ${t.title} ${t.desc} ${t.assignee || ""}`.toLowerCase().includes(q)) &&
       (!ph || t.phase === ph) && (!ep || t.epic === ep) && (!pr || t.priority === pr) && (!ty || t.type === ty) &&
       (spNone ? !t.sprint : !sp || t.sprint === sp) &&
@@ -871,7 +891,45 @@
   }
 
   // ── Навігація ────────────────────────────────────────
-  const VIEWS = { overview: renderOverview, board: renderBoard, list: renderList, roadmap: renderRoadmap, gaps: renderGaps, visual: () => {} };
+  // ── Команда: хто що робить ───────────────────────────
+  function renderTeam() {
+    const tasks = filtered().filter((t) => t.type !== "story" && t.type !== "epic");   // рахуємо реальну роботу, не групи
+    const order = ["progress", "review", "todo", "backlog", "done", "cancelled"];
+    const people = teamList().map((p) => ({ ...p, list: tasks.filter((t) => personKey(t) === p.key) }));
+    const nobody = tasks.filter((t) => personKey(t) === NOBODY);
+    const card = (name, list, opts = {}) => {
+      const by = Object.fromEntries(order.map((s) => [s, list.filter((t) => t.status === s)]));
+      const active = list.filter((t) => t.status !== "cancelled");
+      const done = by.done.length;
+      const pct = active.length ? Math.round((done / active.length) * 100) : 0;
+      const open = [...by.progress, ...by.review, ...by.todo, ...by.backlog];
+      return `<article class="person ${opts.me ? "me" : ""} ${opts.nobody ? "nobody" : ""}">
+        <header>${opts.nobody ? `<span class="avatar initials" style="width:36px;height:36px;font-size:14px;--h:30">?</span>` : avatarImg(name, 36)}
+          <div><b>${esc(name)}${opts.me ? " (ви)" : ""}</b><span class="muted">${active.length} задач · ${pct}% готово</span></div>
+          ${opts.key ? `<button class="btn ghost small" type="button" data-who="${esc(opts.key)}" title="Показати на дошці лише задачі цієї людини">На дошці →</button>` : ""}</header>
+        <div class="p-stats">${["progress", "review", "todo", "backlog", "done"].map((s) => `<span class="ps status-${s}" title="${esc(statusName[s])}"><b>${by[s].length}</b>${esc(statusName[s])}</span>`).join("")}</div>
+        <div class="bar"><span style="width:${pct}%;background:${STATUS_COLORS.done}"></span></div>
+        ${open.length ? `<ul class="p-tasks">${open.slice(0, 12).map((t) => `<li data-open="${esc(t.id)}">${typeIcon(t.type)}<b>${esc(t.id)}</b><span>${esc(t.title)}</span>${statusChip(t.status)}</li>`).join("")}</ul>
+          ${open.length > 12 ? `<p class="muted small">ще ${open.length - 12}… — «На дошці →»</p>` : ""}` : `<p class="muted small">Відкритих задач немає</p>`}
+      </article>`;
+    };
+    const busy = people.filter((p) => p.list.length).sort((a, b) => (b.me ? 1 : 0) - (a.me ? 1 : 0) ||
+      b.list.filter((t) => t.status === "progress").length - a.list.filter((t) => t.status === "progress").length || b.list.length - a.list.length);
+    const idle = people.filter((p) => !p.list.length);
+    $("#view-team").innerHTML = `
+      <div class="view-head"><h2>Команда</h2><p class="muted">Хто що робить: задачі кожної людини за статусом. Фільтри зверху (спринт, епік, пріоритет) теж діють. Епіки і сторі не рахуються — лише конкретна робота.</p></div>
+      <div class="team-grid">
+        ${busy.map((p) => card(p.name, p.list, { me: p.me, key: p.key })).join("")}
+        ${nobody.length ? card("Не призначено", nobody, { nobody: true, key: NOBODY }) : ""}
+      </div>
+      ${idle.length ? `<p class="muted">Без задач у цьому фільтрі: ${idle.map((p) => esc(p.name)).join(", ")}</p>` : ""}`;
+    $$("[data-who]", $("#view-team")).forEach((b) => b.addEventListener("click", () => {
+      $("#fAssignee").value = b.dataset.who;
+      location.hash = "board";
+    }));
+  }
+
+  const VIEWS = { overview: renderOverview, board: renderBoard, list: renderList, team: renderTeam, roadmap: renderRoadmap, gaps: renderGaps, visual: () => {} };
   function currentView() {
     const v = location.hash.slice(1);
     return VIEWS[v] ? v : "overview";
@@ -918,7 +976,8 @@
     lastView = v;
     $$(".view").forEach((el) => el.classList.toggle("active", el === viewEl));
     $$(".tabs a").forEach((a) => a.classList.toggle("active", a.dataset.view === v));
-    $("#filters").hidden = !(v === "board" || v === "list");
+    $("#filters").hidden = !(v === "board" || v === "list" || v === "team");
+    fillAssigneeFilter();
     VIEWS[v]();
 
     // Анімація входу лише при зміні розділу, а не на кожен ввід у фільтрі
