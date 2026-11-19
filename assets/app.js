@@ -43,7 +43,18 @@
   const clean = (o) => { if (!o) return {}; const { _at, _by, ...rest } = o; return rest; };
   const sharedMode = () => !!SYNC?.canWrite();
 
+  // Старі типи (до епіків/сторі) → нові
+  const TYPE_ALIAS = { feature: "story", tech: "task", design: "task", content: "task" };
+  const normType = (t) => TYPE_ALIAS[t] || (P.types[t] ? t : "task");
+
+  // Склеєний список задач рахується один раз на кадр, а не на кожен getTask()
+  let tasksCache = null;
+  const invalidate = () => { tasksCache = null; };
   function allTasks() {
+    if (!tasksCache) tasksCache = buildTasks().map((t) => ({ ...t, type: normType(t.type) }));
+    return tasksCache;
+  }
+  function buildTasks() {
     const sh = shared();
     // Редактор бачить лише спільний стан: старі локальні зміни (зроблені до входу) більше не
     // перекривають дошку — інакше людина бачить одне, а команда інше. Їх можна перенести в профілі.
@@ -55,19 +66,25 @@
   }
   const isMine = (t) => !!SYNC?.myMemberId && t.assigneeId === SYNC.myMemberId;
   function getTask(id) { return allTasks().find((t) => t.id === id); }
+  const childrenOf = (id) => allTasks().filter((t) => t.parent === id);
   function patchTask(id, patch) {
-    if (sharedMode()) { SYNC.patch(id, patch, getTask(id)); return; }
+    const task = getTask(id);
+    invalidate();
+    if (sharedMode()) { SYNC.patch(id, patch, task); return; }
     const custom = store.custom.find((t) => t.id === id);
     if (custom) Object.assign(custom, patch);
     else store.overrides[id] = { ...(store.overrides[id] || {}), ...patch };
     save();
   }
   function createTask(task) {
+    invalidate();
     if (sharedMode()) SYNC.create(task);
     else { store.custom.push(task); save(); }
   }
   function deleteTask(id) {
-    if (sharedMode() && shared().custom.some((t) => t.id === id)) { SYNC.remove(id, getTask(id)); return; }
+    const task = getTask(id);
+    invalidate();
+    if (sharedMode() && shared().custom.some((t) => t.id === id)) { SYNC.remove(id, task); return; }
     store.custom = store.custom.filter((x) => x.id !== id);
     save();
   }
@@ -75,7 +92,36 @@
   // ── Утиліти рендеру ──────────────────────────────────
   const prChip = (p) => `<span class="chip ${esc(p).toLowerCase()}">${esc(p)}</span>`;
   const epicChip = (e) => `<span class="chip epic" title="${esc(epicById[e]?.name || e)}">${esc(e)}</span>`;
-  const typeChip = (t) => `<span class="chip ${t === "bug" ? "bug" : ""}">${esc(P.types[t] || t)}</span>`;
+  const TYPE_ICON = { epic: "⚡", story: "▮", task: "✓", bug: "✱", subtask: "↳" };
+  const typeIcon = (t) => `<span class="ticon t-${esc(t)}" title="${esc(P.types[t] || t)}">${TYPE_ICON[t] || "•"}</span>`;
+  const typeChip = (t) => `<span class="chip tchip t-${esc(t)}">${TYPE_ICON[t] || ""} ${esc(P.types[t] || t)}</span>`;
+
+  // ── Спринти ──────────────────────────────────────────
+  const SPRINTS = P.sprints || [];
+  const sprintById = Object.fromEntries(SPRINTS.map((s) => [s.id, s]));
+  const today = () => new Date().toISOString().slice(0, 10);
+  const currentSprint = () => SPRINTS.find((s) => s.start <= today() && today() <= s.end) || null;
+  const fmtDate = (d) => new Date(d + "T00:00:00").toLocaleDateString("uk-UA", { day: "numeric", month: "short" });
+  const sprintLabel = (s) => `${s.name} · ${fmtDate(s.start)} – ${fmtDate(s.end)}${s === currentSprint() ? " · поточний" : ""}`;
+  const SPRINT_KEY = "agency6-sprint";
+  function sprintChoice() { try { return localStorage.getItem(SPRINT_KEY) ?? "current"; } catch (e) { return "current"; } }
+  function sprintFilterId() {
+    const v = $("#fSprint")?.value ?? sprintChoice();
+    return v === "current" ? (currentSprint()?.id || "") : v;
+  }
+  function sprintCard(id) {
+    const s = sprintById[id];
+    if (!s) return "";
+    const list = activeTasks().filter((t) => t.sprint === id);
+    const done = list.filter((t) => t.status === "done").length;
+    const pct = list.length ? Math.round((done / list.length) * 100) : 0;
+    const days = Math.ceil((new Date(s.end + "T23:59:59") - new Date()) / 864e5);
+    const when = today() < s.start ? `почнеться ${fmtDate(s.start)}` : days >= 0 ? `лишилось ${days} ${days === 1 ? "день" : days < 5 ? "дні" : "днів"}` : "завершено";
+    return `<div class="sprint-card">
+      <div class="sp-main"><b>${esc(s.name)}</b><span class="muted">${fmtDate(s.start)} – ${fmtDate(s.end)} · ${when}</span><p>${esc(s.goal || "")}</p></div>
+      <div class="sp-prog"><span class="lp-num"><b>${pct}%</b> · ${done}/${list.length} готово</span><div class="bar"><span style="width:${pct}%;background:${STATUS_COLORS.done}"></span></div></div>
+    </div>`;
+  }
   const statusChip = (s) => `<span class="chip status-${esc(s)}">${esc(statusName[s] || s)}</span>`;
   const critProgress = (t) => {
     const total = (t.criteria || []).length;
@@ -96,16 +142,26 @@
     $("#fPhase").innerHTML = `<option value="">Усі фази</option>` + P.phases.map((p) => `<option value="${p.id}">${p.id === "0" ? "" : "Фаза " + p.id + " · "}${esc(p.name)}</option>`).join("");
     $("#fEpic").innerHTML = `<option value="">Усі епіки</option>` + P.epics.map((e) => `<option value="${e.id}">${e.id} · ${esc(e.name)}</option>`).join("");
     $("#fType").innerHTML = `<option value="">Усі типи</option>` + Object.entries(P.types).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("");
+    const cur = currentSprint();
+    $("#fSprint").innerHTML = `<option value="current">Поточний спринт${cur ? " · " + esc(cur.name) : ""}</option>
+      <option value="">Усі задачі</option>
+      ${SPRINTS.map((s) => `<option value="${s.id}">${esc(sprintLabel(s))}</option>`).join("")}
+      <option value="none">Без спринту (беклог)</option>`;
+    $("#fSprint").value = sprintChoice();
+    if ($("#fSprint").selectedIndex < 0) $("#fSprint").value = "current";
+    $("#fSprint").addEventListener("change", () => { try { localStorage.setItem(SPRINT_KEY, $("#fSprint").value); } catch (e) { /* ігноруємо */ } });
     $$("#filters input, #filters select").forEach((el) => el.addEventListener("input", render));
   }
   function filtered() {
     const q = $("#fSearch").value.trim().toLowerCase();
     const ph = $("#fPhase").value, ep = $("#fEpic").value, pr = $("#fPriority").value, ty = $("#fType").value;
+    const sp = sprintFilterId(), spNone = $("#fSprint")?.value === "none";
     const hideDone = $("#fHideDone").checked;
     const onlyMine = $("#fMine")?.checked;
     return allTasks().filter((t) =>
       (!q || `${t.id} ${t.title} ${t.desc} ${t.assignee || ""}`.toLowerCase().includes(q)) &&
       (!ph || t.phase === ph) && (!ep || t.epic === ep) && (!pr || t.priority === pr) && (!ty || t.type === ty) &&
+      (spNone ? !t.sprint : !sp || t.sprint === sp) &&
       (!hideDone || !isClosed(t.status)) && (!onlyMine || isMine(t)));
   }
   // Пріоритет → порядок фази (стабілізація раніше за фічі) → ID
@@ -437,7 +493,7 @@
   function initSync() {
     if (!SYNC) return;
     SYNC.onStatus = renderSyncButton;
-    SYNC.onChange = () => { if (!dlg.open || !form.querySelector("#dSave")) render(); else renderSyncButton(); };
+    SYNC.onChange = () => { invalidate(); if (!dlg.open || !form.querySelector("#dSave")) renderSoon(); else renderSyncButton(); };
     SYNC.onRemoteEvents = (events) => {
       events.forEach((e) => freshKeys.add(e.at + e.id));
       const e = events[0];
@@ -468,22 +524,52 @@
   }
 
   // ── Дошка ────────────────────────────────────────────
+  // Прогрес епіка / батьківської задачі за сабтасками
+  function childProgress(t) {
+    const kids = childrenOf(t.id).filter((k) => k.status !== "cancelled");
+    if (!kids.length) return "";
+    const d = kids.filter((k) => k.status === "done").length;
+    return `<span class="kids" title="Сабтаски: ${d} з ${kids.length} готово">☰ ${d}/${kids.length}</span>`;
+  }
   function cardHtml(t) {
     const ph = phaseById[t.phase];
-    return `<article class="tcard" draggable="true" data-id="${esc(t.id)}" style="--phase:${ph ? ph.color : "#5a4930"}">
-      <div class="row"><span class="id">${esc(t.id)}</span>${prChip(t.priority)}</div>
+    const epic = t.type === "epic";
+    return `<article class="tcard${epic ? " is-epic" : ""}${t.parent ? " is-child" : ""}" draggable="true" data-id="${esc(t.id)}" style="--phase:${ph ? ph.color : "#5a4930"}">
+      ${epic ? `<span class="epic-mark">⚡ ЕПІК</span>` : ""}
+      <div class="row"><span class="id">${typeIcon(t.type)}${esc(t.id)}</span>${prChip(t.priority)}</div>
       <div class="title">${esc(t.title)}</div>
-      <div class="meta">${epicChip(t.epic)}${t.type === "bug" ? typeChip(t.type) : ""}<span class="chip">${esc(t.estimate || "—")}</span>${t.phase !== "0" ? `<span class="chip">Ф-${esc(t.phase)}</span>` : ""}${critProgress(t)}</div>
+      <div class="meta">${epicChip(t.epic)}<span class="chip">${esc(t.estimate || "—")}</span>${t.sprint && sprintById[t.sprint] ? `<span class="chip" title="${esc(sprintLabel(sprintById[t.sprint]))}">${esc(t.sprint)}</span>` : ""}${critProgress(t)}${childProgress(t)}</div>
       ${t.assignee ? `<div class="assignee ${isMine(t) ? "mine" : ""}" title="Виконавець: ${esc(t.assignee)}">${avatarImg(t.assignee, 20)}<span>${isMine(t) ? "Ви" : esc(t.assignee)}</span></div>` : ""}
     </article>`;
   }
+  // Група сабтасок під батьківською задачею (як у Jira): заголовок — батько, всередині — його сабтаски з цієї колонки
+  function subgroupHtml(parentId, kids) {
+    const p = getTask(parentId);
+    return `<div class="subgroup${p?.type === "epic" ? " of-epic" : ""}">
+      <div class="sg-head" data-open="${esc(parentId)}">${p ? typeIcon(p.type) : ""}<b>${esc(parentId)}</b> ${esc(p?.title || "")}</div>
+      ${kids.map(cardHtml).join("")}
+    </div>`;
+  }
+  const epicFirst = (a, b) => (b.type === "epic") - (a.type === "epic") || byPriority(a, b);
+  function columnHtml(list) {
+    const groups = new Map();
+    list.filter((t) => t.parent).forEach((t) => { if (!groups.has(t.parent)) groups.set(t.parent, []); groups.get(t.parent).push(t); });
+    let html = "";
+    list.filter((t) => !t.parent || !getTask(t.parent)).sort(epicFirst).forEach((t) => {
+      html += cardHtml(t);
+      if (groups.has(t.id)) { html += subgroupHtml(t.id, groups.get(t.id)); groups.delete(t.id); }
+    });
+    // Сабтаски, чий батько в іншій колонці
+    groups.forEach((kids, pid) => { if (getTask(pid)) html += subgroupHtml(pid, kids); });
+    return html;
+  }
   function renderBoard() {
     const tasks = filtered();
-    $("#view-board").innerHTML = `<div class="board">${P.statuses.map((s) => {
+    $("#view-board").innerHTML = sprintCard(sprintFilterId()) + `<div class="board">${P.statuses.map((s) => {
       const list = tasks.filter((t) => t.status === s.id).sort(byPriority);
       return `<section class="column" data-status="${s.id}">
         <header><h3>${esc(s.name)}</h3><span class="count">${list.length}</span></header>
-        <div class="cards">${list.map(cardHtml).join("") || `<div class="empty">Порожньо</div>`}</div>
+        <div class="cards">${columnHtml(list) || `<div class="empty">Порожньо</div>`}</div>
       </section>`;
     }).join("")}</div>`;
     bindDrag();
@@ -520,11 +606,11 @@
       return `<section class="phase-group">
         <header><span class="phase-dot" style="background:${p.color}"></span><h3>${p.id === "0" ? "" : "Фаза " + p.id + " · "}${esc(p.name)}</h3><span class="muted">${esc(p.goal)}</span></header>
         <div class="table-wrap"><table>
-          <thead><tr><th>ID</th><th>Задача</th><th>Епік</th><th>Тип</th><th>Пріор.</th><th>Оцінка</th><th>Статус</th><th>Залежить від</th></tr></thead>
-          <tbody>${list.map((t) => `<tr data-open="${esc(t.id)}" class="${isClosed(t.status) ? "is-done" : ""} ${t.status === "cancelled" ? "is-cancelled" : ""}">
-            <td class="idc">${esc(t.id)}</td><td class="ttl">${esc(t.title)}</td><td>${epicChip(t.epic)}</td><td>${typeChip(t.type)}</td>
-            <td>${prChip(t.priority)}</td><td class="mono">${esc(t.estimate || "")}</td><td>${statusChip(t.status)}</td>
-            <td class="mono muted">${esc((t.deps || []).join(", "))}</td></tr>`).join("")}</tbody>
+          <thead><tr><th>ID</th><th>Задача</th><th>Епік</th><th>Тип</th><th>Пріор.</th><th>Оцінка</th><th>Спринт</th><th>Статус</th><th>Виконавець</th></tr></thead>
+          <tbody>${list.map((t) => `<tr data-open="${esc(t.id)}" class="${isClosed(t.status) ? "is-done" : ""} ${t.status === "cancelled" ? "is-cancelled" : ""} ${t.type === "epic" ? "is-epic" : ""}">
+            <td class="idc">${esc(t.id)}</td><td class="ttl">${t.parent ? `<span class="muted mono">${esc(t.parent)} ›</span> ` : ""}${esc(t.title)}</td><td>${epicChip(t.epic)}</td><td>${typeChip(t.type)}</td>
+            <td>${prChip(t.priority)}</td><td class="mono">${esc(t.estimate || "")}</td><td class="mono">${esc(t.sprint || "—")}</td><td>${statusChip(t.status)}</td>
+            <td class="muted">${esc(t.assignee || "")}</td></tr>`).join("")}</tbody>
         </table></div>
       </section>`;
     }).join("") || `<div class="empty">Нічого не знайдено за фільтрами</div>`;
@@ -604,9 +690,13 @@
         ${blockers(t.id)}
         ${(t.code || []).length ? `<section><h4>Код</h4><p class="mono muted">${t.code.map(esc).join("<br>")}</p></section>` : ""}
         ${t.gdd ? `<section><h4>GDD</h4><p><a href="${esc(P.links.gdd)}" target="_blank" rel="noopener">${esc(t.gdd)}</a></p></section>` : ""}
+        ${kidsSection(t)}
         <section class="field-grid">
           <label class="field">Статус<select id="dStatus">${P.statuses.map((s) => `<option value="${s.id}" ${s.id === t.status ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select></label>
           ${assigneeField(t)}
+          <label class="field">Тип<select id="dType">${typeOptions(t.type)}</select></label>
+          <label class="field">Спринт<select id="dSprint">${sprintOptions(t.sprint)}</select></label>
+          <label class="field">Батьківська задача<select id="dParent">${parentOptions(t.parent, t.id)}</select></label>
         </section>
         <label class="field">Нотатки<textarea id="dNotes" placeholder="Рішення, посилання, питання…">${esc(t.notes || "")}</textarea></label>
       </div>
@@ -627,7 +717,10 @@
     }));
     // Записуємо лише те, що справді змінилось — менше запитів і «порожніх» записів у журналі
     const changes = (status) => {
-      const next = { status, notes: $("#dNotes").value, ...readAssignee() };
+      const next = { status, notes: $("#dNotes").value, type: $("#dType").value, sprint: $("#dSprint").value, parent: $("#dParent").value, ...readAssignee() };
+      // Сабтаска без батька — просто задача; задача з батьком — сабтаска (якщо не епік/сторі)
+      if (next.parent && next.type === "task") next.type = "subtask";
+      if (!next.parent && next.type === "subtask") next.type = "task";
       return Object.fromEntries(Object.entries(next).filter(([k, v]) => (t[k] ?? "") !== (v ?? "")));
     };
     $("#dSave", form).addEventListener("click", () => {
@@ -688,6 +781,26 @@
     return { assignee: el.value.trim() };
   }
 
+  const typeOptions = (sel) => Object.entries(P.types).map(([k, v]) => `<option value="${k}" ${k === sel ? "selected" : ""}>${TYPE_ICON[k] || ""} ${esc(v)}</option>`).join("");
+  const sprintOptions = (sel) => `<option value="">— без спринту —</option>` +
+    SPRINTS.map((s) => `<option value="${s.id}" ${s.id === sel ? "selected" : ""}>${esc(sprintLabel(s))}</option>`).join("");
+  // Батьком може бути епік, сторі або задача; не можна обрати себе чи власного нащадка
+  function parentOptions(sel, selfId) {
+    const banned = new Set([selfId]);
+    let grew = true;
+    while (grew) { grew = false; allTasks().forEach((x) => { if (x.parent && banned.has(x.parent) && !banned.has(x.id)) { banned.add(x.id); grew = true; } }); }
+    const cands = allTasks().filter((x) => !banned.has(x.id) && x.type !== "subtask" && x.status !== "cancelled" && (x.type === "epic" || x.status !== "done"))
+      .sort((a, b) => (b.type === "epic") - (a.type === "epic") || a.id.localeCompare(b.id, undefined, { numeric: true }));
+    return `<option value="">— немає —</option>` + cands.map((x) => `<option value="${esc(x.id)}" ${x.id === sel ? "selected" : ""}>${x.type === "epic" ? "⚡ " : ""}${esc(x.id)} · ${esc(x.title.slice(0, 50))}</option>`).join("");
+  }
+  function kidsSection(t) {
+    const kids = childrenOf(t.id);
+    if (!kids.length) return "";
+    const d = kids.filter((k) => k.status === "done").length;
+    return `<section><h4>Сабтаски · ${d}/${kids.length}</h4><ul class="kid-list">${kids.sort(byPriority).map((k) => `
+      <li data-open="${esc(k.id)}">${typeIcon(k.type)}<b>${esc(k.id)}</b><span>${esc(k.title)}</span>${statusChip(k.status)}${k.assignee ? avatarImg(k.assignee, 18) : ""}</li>`).join("")}</ul></section>`;
+  }
+
   function blockers(id) {
     const list = allTasks().filter((t) => (t.deps || []).includes(id));
     if (!list.length) return "";
@@ -707,7 +820,9 @@
         <div class="field-grid">
           <label class="field">Фаза<select id="nPhase">${opts(P.phases.map((p) => [p.id, (p.id === "0" ? "" : p.id + " · ") + p.name]), "B")}</select></label>
           <label class="field">Епік<select id="nEpic">${opts(P.epics.map((e) => [e.id, e.id + " · " + e.name]), "DLG")}</select></label>
-          <label class="field">Тип<select id="nType">${opts(Object.entries(P.types), "feature")}</select></label>
+          <label class="field">Тип<select id="nType">${typeOptions("task")}</select></label>
+          <label class="field">Спринт<select id="nSprint">${sprintOptions(sprintFilterId())}</select></label>
+          <label class="field">Батьківська задача<select id="nParent">${parentOptions("", "")}</select></label>
           <label class="field">Пріоритет<select id="nPriority">${opts([["P0", "P0"], ["P1", "P1"], ["P2", "P2"], ["P3", "P3"]], "P1")}</select></label>
           <label class="field">Оцінка<select id="nEstimate">${opts([["S", "S · 1–2 дні"], ["M", "M · 3–5 днів"], ["L", "L · 1–2 тижні"]], "M")}</select></label>
           <label class="field">Залежить від (ID через кому)<input id="nDeps" placeholder="AG-005, AG-013"></label>
@@ -721,7 +836,9 @@
         id: nextId, title,
         desc: $("#nDesc").value.trim(),
         criteria: $("#nCrit").value.split("\n").map((s) => s.trim()).filter(Boolean),
-        phase: $("#nPhase").value, epic: $("#nEpic").value, type: $("#nType").value,
+        phase: $("#nPhase").value, epic: $("#nEpic").value,
+        type: $("#nParent").value && $("#nType").value === "task" ? "subtask" : $("#nType").value,
+        sprint: $("#nSprint").value, parent: $("#nParent").value,
         priority: $("#nPriority").value, estimate: $("#nEstimate").value,
         deps: $("#nDeps").value.split(",").map((s) => s.trim().toUpperCase()).filter(Boolean),
         status: "backlog"
@@ -782,10 +899,22 @@
     });
   }
 
+  // Кілька змін за кадр (кеш → користувач → дані з бази) → одне перемальовування
+  let renderQueued = false;
+  function renderSoon() {
+    invalidate();
+    if (renderQueued) return;
+    renderQueued = true;
+    requestAnimationFrame(() => { renderQueued = false; render(); });
+  }
+
   function render() {
+    invalidate();
     const v = currentView();
     const viewEl = $("#view-" + v);
     const entering = v !== lastView;
+    // Оновлення даних без зміни розділу: без повторної анімації появи (інакше картки «блимають»)
+    if (!entering) viewEl.classList.remove("enter");
     lastView = v;
     $$(".view").forEach((el) => el.classList.toggle("active", el === viewEl));
     $$(".tabs a").forEach((a) => a.classList.toggle("active", a.dataset.view === v));

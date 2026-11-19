@@ -904,3 +904,48 @@ details.access h4 { margin: 14px 0 6px; font-size: 13px; text-transform: upperca
 .cred { margin-top: 10px; border: 1px solid var(--accent); border-radius: 8px; padding: 10px 12px; background: var(--panel-2); }
 .cred pre { white-space: pre-wrap; overflow-wrap: anywhere; font-family: var(--mono); font-size: 13px; margin: 8px 0; user-select: all; }
 .btn.login .badge { margin-left: 4px; }
+
+/* ── Типи задач, епіки, сабтаски, спринти ── */
+:root { --epic: #9b6cf0; --story: #4fb06b; --task: #4a8fe0; --bugc: #e0544a; --sub: #6fa8dc; }
+.ticon { display: inline-grid; place-items: center; width: 15px; height: 15px; border-radius: 3px; margin-right: 5px; font-size: 9px; font-weight: 700; color: #fff; vertical-align: -2px; font-family: var(--sans, inherit); }
+.ticon.t-epic { background: var(--epic); }
+.ticon.t-story { background: var(--story); }
+.ticon.t-task { background: var(--task); }
+.ticon.t-bug { background: var(--bugc); }
+.ticon.t-subtask { background: transparent; color: var(--sub); border: 1px solid var(--sub); }
+.chip.tchip.t-epic { color: var(--epic); border-color: color-mix(in srgb, var(--epic) 55%, transparent); }
+.chip.tchip.t-story { color: var(--story); }
+.chip.tchip.t-task { color: var(--task); }
+.chip.tchip.t-bug { color: var(--bugc); border-color: color-mix(in srgb, var(--bugc) 55%, transparent); }
+.chip.tchip.t-subtask { color: var(--sub); }
+
+.tcard.is-epic { border-left: 4px solid var(--epic); background: linear-gradient(90deg, color-mix(in srgb, var(--epic) 14%, var(--panel)), var(--panel) 70%); position: relative; }
+.tcard.is-epic .title { font-weight: 700; }
+.epic-mark { display: inline-block; margin-bottom: 6px; padding: 1px 7px; border-radius: 4px; background: var(--epic); color: #fff; font: 700 10px var(--mono); letter-spacing: .06em; }
+.tcard .kids { font: 11px var(--mono); color: var(--sub); }
+.tcard.is-epic .kids { color: var(--epic); font-weight: 700; }
+
+.subgroup { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: grid; gap: 6px; background: color-mix(in srgb, var(--panel) 60%, transparent); }
+.subgroup.of-epic { border-color: color-mix(in srgb, var(--epic) 45%, var(--line)); }
+.sg-head { font-size: 12px; color: var(--muted); padding: 2px 4px; cursor: pointer; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sg-head b { color: var(--text); font-family: var(--mono); margin-right: 4px; }
+.subgroup.of-epic .sg-head b { color: var(--epic); }
+.tcard.is-child { padding: 9px 10px; }
+.tcard.is-child .title { margin: 4px 0 6px; font-size: 13px; }
+
+tr.is-epic td.ttl { font-weight: 700; color: var(--epic); }
+.kid-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.kid-list li { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 7px; cursor: pointer; font-size: 13px; }
+.kid-list li:hover { background: var(--panel-2); }
+.kid-list li b { font-family: var(--mono); font-size: 12px; }
+.kid-list li span:not(.chip):not(.ticon):not(.avatar) { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.sprint-select { font-weight: 600; color: var(--accent); }
+.sprint-card { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; margin: 0 0 14px; padding: 12px 16px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: var(--radius); background: var(--panel); }
+.sprint-card .sp-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; min-width: 0; flex: 1 1 320px; }
+.sprint-card .sp-main b { font-family: "Barlow Condensed", sans-serif; font-size: 20px; text-transform: uppercase; letter-spacing: .04em; color: var(--accent); }
+.sprint-card .sp-main p { flex-basis: 100%; margin: 2px 0 0; color: var(--muted); font-size: 13px; }
+.sprint-card .sp-prog { flex: 0 1 260px; display: grid; gap: 6px; font-size: 13px; }
+
+/* Картки на дошці з'являються швидше */
+.view.enter .tcard { animation-delay: calc(40ms + var(--i, 0) * 8ms) !important; animation-duration: .25s !important; }
